@@ -1,0 +1,158 @@
+// API request/response types
+
+// Generic API response wrapper
+export interface ApiResponse<T> {
+  data: T;
+  timestamp: string;
+}
+
+// Error response
+export interface ApiError {
+  timestamp: string;
+  status: number;
+  error: string;
+  message: string;
+  path: string;
+  errors?: ValidationError[];
+}
+
+export interface ValidationError {
+  field: string;
+  message: string;
+}
+
+// Health check types
+export interface HealthCheckResponse {
+  status: "UP" | "DOWN";
+  timestamp: string;
+  database: "connected" | "disconnected";
+}
+
+// Future: Pagination
+export interface PaginatedResponse<T> {
+  data: T[];
+  page: number;
+  pageSize: number;
+  totalElements: number;
+  totalPages: number;
+}
+
+// Auth types
+export interface RegisterRequest {
+  name: string;
+  email: string;
+  password: string;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface LoginResponse {
+  token: string;
+  user: UserProfile;
+}
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  name: string;
+  subscriptionTier: "FREE" | "PREMIUM";
+}
+
+// Entity types
+export interface School {
+  id: string;
+  name: string;
+  location: string | null;
+  createdAt: string;
+}
+
+export interface Professor {
+  id: string;
+  name: string;
+  department: string | null;
+  schoolId: string;
+  createdAt: string;
+}
+
+export interface Course {
+  id: string;
+  name: string;
+  code: string;
+  schoolId: string;
+  professorId: string;
+  createdAt: string;
+}
+
+// Request types
+export interface CreateSchoolRequest {
+  name: string;
+  location?: string;
+}
+
+export interface CreateProfessorRequest {
+  name: string;
+  department?: string;
+  schoolId: string;
+}
+
+export interface CreateCourseRequest {
+  name: string;
+  code: string;
+  schoolId: string;
+  professorId: string;
+}
+
+// Homework Q&A types
+export interface HomeworkAskRequest {
+  courseId: string;
+  questionText: string;
+}
+
+// Conversation types
+export interface Conversation {
+  id: string;
+  courseId: string;
+  courseName: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt: string;
+}
+
+export interface CreateConversationRequest {
+  courseId: string;
+  questionText: string;
+}
+
+export interface SendMessageRequest {
+  content: string;
+}
+
+// Study Material types
+export interface StudyMaterialResponse {
+  id: string;
+  fileName: string;
+  courseName: string;
+  courseId: string;
+  materialType: "HOMEWORK" | "PPT" | "EXAM" | "NOTES";
+  status: "VALIDATING" | "READY" | "REJECTED" | "QUARANTINED";
+  previewUrl?: string | null;
+  downloadUrl?: string | null;
+  contentType?: string | null;
+  rejectionReason: string | null;
+  createdAt: string;
+}
+
+export interface MaterialUploadResponse {
+  id: string;
+  status: string;
+}
