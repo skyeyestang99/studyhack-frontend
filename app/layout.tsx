@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import Navigation from "@/components/layout/Navigation";
 import Footer from "@/components/layout/Footer";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ClerkProvider } from "@clerk/nextjs";
 import { Toaster } from "sonner";
 import "./globals.css";
 
@@ -28,7 +29,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <ClerkProvider>
+      <html lang="en">
       <head>
         <link
           rel="stylesheet"
@@ -48,6 +50,7 @@ export default function RootLayout({
           <Toaster />
         </AuthProvider>
       </body>
-    </html>
+      </html>
+    </ClerkProvider>
   );
 }

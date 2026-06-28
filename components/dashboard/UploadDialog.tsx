@@ -23,6 +23,7 @@ import {
 import { apiClient } from "@/lib/api-client";
 import { Course } from "@/types/api";
 import { env } from "@/lib/env";
+import { getAuthToken } from "@/lib/auth-token";
 import { cn } from "@/lib/utils";
 
 interface UploadDialogProps {
@@ -138,8 +139,7 @@ export function UploadDialog({
       formData.append("materialType", materialType);
       updateFile(item.id, { progress: 35 });
 
-      const token =
-        typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const token = await getAuthToken();
       const res = await fetch(`${env.apiUrl}/api/materials/upload`, {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},

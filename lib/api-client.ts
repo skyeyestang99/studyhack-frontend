@@ -1,5 +1,6 @@
 import { env } from "@/lib/env";
 import { getMockResponse } from "@/lib/mock-data";
+import { getAuthToken } from "@/lib/auth-token";
 import { ApiError } from "@/types/api";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -20,17 +21,15 @@ function buildUrl(path: string, params?: Record<string, string>): string {
   return url.toString();
 }
 
-function buildHeaders(config?: RequestConfig): Record<string, string> {
+async function buildHeaders(config?: RequestConfig): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
   };
 
-  if (typeof window !== "undefined") {
-    const token = localStorage.getItem("token");
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
+  const token = await getAuthToken();
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
   }
 
   if (config?.headers) {
@@ -49,11 +48,9 @@ async function handleResponse<T>(response: Response): Promise<T> {
     return response.json() as Promise<T>;
   }
 
-  // 401 or 403: clear auth and redirect to login (Spring Security returns 403 for expired tokens)
+  // 401 or 403: session invalid/expired -> send to sign-in.
   if (response.status === 401 || response.status === 403) {
     if (typeof window !== "undefined") {
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
       window.location.href = "/login";
     }
     // Still throw the error
@@ -124,7 +121,7 @@ async function request<T>(
   try {
     const response = await fetch(pathWithParams, {
       method,
-      headers: buildHeaders(config),
+      headers: await buildHeaders(config),
       body: data !== undefined ? JSON.stringify(data) : undefined,
       signal,
     });
