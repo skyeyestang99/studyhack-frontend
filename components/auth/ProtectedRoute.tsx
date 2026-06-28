@@ -10,18 +10,18 @@ export default function ProtectedRoute({
 }: {
   children: React.ReactNode;
 }) {
-  const { isAuthenticated } = useAuth();
+  const { isLoaded, isAuthenticated } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!isAuthenticated && !env.useMocks) {
+    if (env.useMocks) return;
+    if (isLoaded && !isAuthenticated) {
       router.push("/login");
     }
-  }, [isAuthenticated, router]);
+  }, [isLoaded, isAuthenticated, router]);
 
-  if (!isAuthenticated && !env.useMocks) {
-    return null;
-  }
+  if (env.useMocks) return <>{children}</>;
+  if (!isLoaded || !isAuthenticated) return null;
 
   return <>{children}</>;
 }

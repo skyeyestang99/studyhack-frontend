@@ -14,6 +14,7 @@ import type { ChatMessage, Conversation, Course } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DeleteDialog } from "@/components/dashboard/DeleteDialog";
+import { getAuthToken } from "@/lib/auth-token";
 
 interface CourseChatPanelProps {
   course: Course;
@@ -22,17 +23,14 @@ interface CourseChatPanelProps {
 
 const MAX_QUESTION_LENGTH = 5000;
 
-function getToken() {
-  return localStorage.getItem("token");
-}
-
 async function apiGet<T>(path: string): Promise<T> {
   if (env.useMocks) {
     const mockResponse = getMockResponse<T>(path);
     if (mockResponse !== undefined) return mockResponse;
   }
+  const token = await getAuthToken();
   const res = await fetch(`${env.apiUrl}${path}`, {
-    headers: { Authorization: `Bearer ${getToken()}` },
+    headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) throw new Error("Request failed");
   return res.json();
@@ -50,11 +48,12 @@ async function apiPost<T>(path: string, body: unknown): Promise<T> {
       updatedAt: new Date().toISOString(),
     } as T;
   }
+  const token = await getAuthToken();
   const res = await fetch(`${env.apiUrl}${path}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${getToken()}`,
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(body),
   });
@@ -127,11 +126,12 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
         return;
       }
 
+      const token = await getAuthToken();
       const res = await fetch(`${env.apiUrl}${path}`, {
         method,
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${getToken()}`,
+          Authorization: `Bearer ${token}`,
         },
         ...(body ? { body: JSON.stringify(body) } : {}),
       });
@@ -278,9 +278,10 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
     if (!deleteTarget) return;
     setIsDeleting(true);
     try {
+      const token = await getAuthToken();
       await fetch(`${env.apiUrl}/api/conversations/${deleteTarget.id}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${getToken()}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       toast.success("Conversation deleted");
       if (activeConversation?.id === deleteTarget.id) {
