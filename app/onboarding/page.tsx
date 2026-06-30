@@ -6,6 +6,8 @@ import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEntities } from "@/hooks/useEntities";
 import { markOnboardingComplete } from "@/lib/onboarding-state";
+import { apiClient } from "@/lib/api-client";
+import { env } from "@/lib/env";
 import type { Professor, School } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,6 +40,8 @@ export default function OnboardingPage() {
   const [semester, setSemester] = useState("Spring 2026");
   const [saved, setSaved] = useState(false);
   const [attemptedSave, setAttemptedSave] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [rows, setRows] = useState<CourseRow[]>([
     {
       id: "row-1",
@@ -92,11 +96,43 @@ export default function OnboardingPage() {
   const hasCourse = rows.some((row) => row.code.trim() && row.name.trim());
   const canSave = hasSchool && hasMajor && hasSemester && hasCourse;
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setAttemptedSave(true);
-    if (!canSave) return;
-    markOnboardingComplete(user?.id);
-    setSaved(true);
+    if (!canSave || saving) return;
+    setSaving(true);
+    setSaveError("");
+    try {
+      // Mock mode (no backend): just mark complete locally.
+      if (!env.useMocks) {
+        const payload = {
+          school:
+            schoolId === "__new"
+              ? { name: newSchool.trim() }
+              : { id: schoolId },
+          semester: semester.trim(),
+          courses: rows
+            .filter((r) => r.code.trim() && r.name.trim())
+            .map((r) => ({
+              code: r.code.trim(),
+              name: r.name.trim(),
+              professor:
+                r.professorId === "__new"
+                  ? { name: r.newProfessor.trim() }
+                  : r.professorId
+                    ? { id: r.professorId }
+                    : undefined,
+            })),
+        };
+        await apiClient.post("/api/onboarding", payload);
+      }
+      markOnboardingComplete(user?.id);
+      setSaved(true);
+    } catch (e) {
+      const err = e as { message?: string };
+      setSaveError(err.message || "Could not save your setup. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -270,8 +306,15 @@ export default function OnboardingPage() {
             ))}
 
             <div className="flex justify-end">
-              <Button onClick={handleSave}>Save and continue</Button>
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? "Saving..." : "Save and continue"}
+              </Button>
             </div>
+            {saveError && (
+              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                {saveError}
+              </div>
+            )}
             {attemptedSave && !canSave && (
               <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
                 Complete the required setup fields:
