@@ -65,6 +65,8 @@ export interface UserProfile {
 export interface School {
   id: string;
   name: string;
+  shortName?: string | null;
+  aliases?: string[];
   location: string | null;
   createdAt: string;
 }
@@ -72,6 +74,8 @@ export interface School {
 export interface Professor {
   id: string;
   name: string;
+  shortName?: string | null;
+  aliases?: string[];
   department: string | null;
   schoolId: string;
   createdAt: string;
@@ -89,13 +93,32 @@ export interface Course {
 // Request types
 export interface CreateSchoolRequest {
   name: string;
+  shortName?: string;
+  aliases?: string[];
   location?: string;
 }
 
 export interface CreateProfessorRequest {
   name: string;
+  shortName?: string;
+  aliases?: string[];
   department?: string;
   schoolId: string;
+}
+
+export interface OnboardingRequest {
+  school: { id: string } | { name: string };
+  semester: string;
+  courses: Array<{
+    code: string;
+    name: string;
+    professor?: { id: string } | { name: string };
+  }>;
+}
+
+export interface OnboardingResponse {
+  schoolId: string;
+  enrolled: Array<{ courseId: string; code: string; name: string }>;
 }
 
 export interface CreateCourseRequest {

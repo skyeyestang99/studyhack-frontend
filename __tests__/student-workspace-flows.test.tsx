@@ -48,7 +48,7 @@ vi.mock("@/lib/env", () => ({
   },
 }));
 
-const { apiGet } = vi.hoisted(() => ({
+const { apiGet, apiPost } = vi.hoisted(() => ({
   apiGet: vi.fn((endpoint: string) => {
     if (endpoint === "/api/schools") {
       return Promise.resolve([
@@ -73,11 +73,15 @@ const { apiGet } = vi.hoisted(() => ({
     }
     return Promise.resolve([]);
   }),
+  apiPost: vi.fn(() =>
+    Promise.resolve({ schoolId: "school-ucsd", enrolled: [] }),
+  ),
 }));
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: {
     get: apiGet,
+    post: apiPost,
   },
 }));
 
@@ -86,9 +90,30 @@ const UNKNOWN_SCHOOL_NAME = "Northbridge Demo University";
 describe("student workspace flows", () => {
   beforeEach(() => {
     apiGet.mockClear();
+    apiPost.mockClear();
   });
 
-  it("lets a student create a school when search has no matching result", async () => {
+  it("ranks UC San Diego first for its acronym and suppresses creation", async () => {
+    render(<OnboardingPage />);
+
+    const searchInput = await screen.findByPlaceholderText(
+      "Search school or type a new one",
+    );
+    fireEvent.change(searchInput, { target: { value: "ucsd" } });
+
+    const suggestions = screen.getByRole("listbox", {
+      name: "School suggestions",
+    });
+    expect(suggestions).toHaveTextContent("Did you mean?");
+    expect(
+      screen.getByRole("option", { name: /UC San Diego/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Create new "ucsd"/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("requires confirmation before selecting an unmatched new school", async () => {
     render(<OnboardingPage />);
 
     const searchInput = await screen.findByPlaceholderText(
@@ -98,17 +123,83 @@ describe("student workspace flows", () => {
       target: { value: UNKNOWN_SCHOOL_NAME },
     });
 
-    expect(
-      screen.getByText(`No school found for "${UNKNOWN_SCHOOL_NAME}".`),
-    ).toBeInTheDocument();
+    expect(screen.getByText("No strong school match found.")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Create new school" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: `Create new "${UNKNOWN_SCHOOL_NAME}"`,
+      }),
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Create new school?" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(`New school: ${UNKNOWN_SCHOOL_NAME}`)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm create" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("New school:")).toBeInTheDocument(),
+    );
+  });
+
+  it("searches professors only after a school is selected", async () => {
+    render(<OnboardingPage />);
+
+    const schoolSearch = await screen.findByPlaceholderText(
+      "Search school or type a new one",
+    );
+    expect(screen.getByLabelText("Professor search")).toBeDisabled();
+
+    fireEvent.change(schoolSearch, { target: { value: "ucsd" } });
+    fireEvent.click(screen.getByRole("option", { name: /UC San Diego/ }));
+
+    const professorSearch = screen.getByLabelText("Professor search");
+    expect(professorSearch).toBeEnabled();
+    fireEvent.change(professorSearch, { target: { value: "d smith" } });
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText("School name")).toHaveValue(
-        UNKNOWN_SCHOOL_NAME,
-      );
+      expect(
+        screen.getByRole("option", { name: /Dana Smith/ }),
+      ).toBeInTheDocument();
     });
+    expect(apiGet).toHaveBeenCalledWith("/api/professors", {
+      params: { schoolId: "school-ucsd" },
+    });
+  });
+
+  it("requires confirmation before selecting a new professor at the school", async () => {
+    render(<OnboardingPage />);
+
+    const schoolSearch = await screen.findByPlaceholderText(
+      "Search school or type a new one",
+    );
+    fireEvent.change(schoolSearch, { target: { value: "ucsd" } });
+    fireEvent.click(screen.getByRole("option", { name: /UC San Diego/ }));
+
+    const professorSearch = screen.getByLabelText("Professor search");
+    fireEvent.change(professorSearch, {
+      target: { value: "Taylor Northbridge" },
+    });
+
+    const createButton = await screen.findByRole("button", {
+      name: 'Create new "Taylor Northbridge"',
+    });
+    fireEvent.click(createButton);
+
+    expect(
+      screen.getByRole("heading", { name: "Create new professor?" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/at UC San Diego/)).toBeInTheDocument();
+    expect(
+      screen.queryByText(/New professor at UC San Diego/),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm create" }));
+
+    expect(
+      screen.getByText(/New professor at UC San Diego/),
+    ).toBeInTheDocument();
   });
 
   it("shows a multi-file upload queue and requires a material type before upload", () => {

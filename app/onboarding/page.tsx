@@ -5,34 +5,57 @@ import Link from "next/link";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEntities } from "@/hooks/useEntities";
-import { markOnboardingComplete } from "@/lib/onboarding-state";
 import { apiClient } from "@/lib/api-client";
+import { rankMatches } from "@/lib/entity-search";
+import { markOnboardingComplete } from "@/lib/onboarding-state";
 import { env } from "@/lib/env";
-import type { Professor, School } from "@/types/api";
+import type {
+  ApiError,
+  OnboardingRequest,
+  OnboardingResponse,
+  Professor,
+  School,
+} from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 interface CourseRow {
   id: string;
   code: string;
   name: string;
   professorId: string;
+  professorQuery: string;
   newProfessor: string;
 }
+
+interface PendingCreate {
+  kind: "school" | "professor";
+  name: string;
+  rowId?: string;
+}
+
+const emptyCourseRow = (id: string): CourseRow => ({
+  id,
+  code: "",
+  name: "",
+  professorId: "",
+  professorQuery: "",
+  newProfessor: "",
+});
 
 export default function OnboardingPage() {
   const { user } = useAuth();
   const schools = useEntities<School>("/api/schools");
-  const professors = useEntities<Professor>("/api/professors");
   const [schoolId, setSchoolId] = useState("");
   const [schoolQuery, setSchoolQuery] = useState("");
   const [newSchool, setNewSchool] = useState("");
@@ -40,51 +63,91 @@ export default function OnboardingPage() {
   const [semester, setSemester] = useState("Spring 2026");
   const [saved, setSaved] = useState(false);
   const [attemptedSave, setAttemptedSave] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState("");
-  const [rows, setRows] = useState<CourseRow[]>([
-    {
-      id: "row-1",
-      code: "",
-      name: "",
-      professorId: "",
-      newProfessor: "",
-    },
-  ]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [pendingCreate, setPendingCreate] = useState<PendingCreate | null>(null);
+  const [rows, setRows] = useState<CourseRow[]>([emptyCourseRow("row-1")]);
 
   const selectedSchoolId = schoolId === "__new" ? "" : schoolId;
-  const filteredSchools = useMemo(() => {
-    const query = schoolQuery.trim().toLowerCase();
-    if (!query) return schools.data;
-    return schools.data.filter((school) =>
-      school.name.toLowerCase().includes(query),
-    );
-  }, [schoolQuery, schools.data]);
-  const showCreateSchoolHint =
+  const professorParams = useMemo(
+    () => (selectedSchoolId ? { schoolId: selectedSchoolId } : undefined),
+    [selectedSchoolId],
+  );
+  const professors = useEntities<Professor>(
+    "/api/professors",
+    professorParams,
+    Boolean(selectedSchoolId),
+  );
+  const schoolMatches = useMemo(
+    () => rankMatches(schools.data, schoolQuery),
+    [schoolQuery, schools.data],
+  );
+  const hasStrongSchoolMatch = schoolMatches.some((match) => match.strong);
+  const canOfferSchoolCreation =
     schoolQuery.trim().length > 0 &&
-    filteredSchools.length === 0 &&
+    !hasStrongSchoolMatch &&
     schoolId !== "__new";
-  const professorOptions = useMemo(() => {
-    if (!selectedSchoolId) return professors.data;
-    return professors.data.filter((prof) => prof.schoolId === selectedSchoolId);
-  }, [professors.data, selectedSchoolId]);
 
   const updateRow = (id: string, patch: Partial<CourseRow>) => {
-    setRows((prev) =>
-      prev.map((row) => (row.id === id ? { ...row, ...patch } : row)),
+    setRows((previous) =>
+      previous.map((row) => (row.id === id ? { ...row, ...patch } : row)),
     );
   };
 
-  const addRow = () => {
-    setRows((prev) => [
-      ...prev,
-      {
-        id: `row-${Date.now()}`,
-        code: "",
-        name: "",
+  const resetProfessors = () => {
+    setRows((previous) =>
+      previous.map((row) => ({
+        ...row,
         professorId: "",
+        professorQuery: "",
         newProfessor: "",
-      },
+      })),
+    );
+  };
+
+  const handleSchoolQueryChange = (value: string) => {
+    setSchoolQuery(value);
+    setSchoolId("");
+    setNewSchool("");
+    resetProfessors();
+  };
+
+  const selectSchool = (school: School) => {
+    setSchoolId(school.id);
+    setNewSchool("");
+    setSchoolQuery(school.name);
+    resetProfessors();
+  };
+
+  const selectProfessor = (rowId: string, professor: Professor) => {
+    updateRow(rowId, {
+      professorId: professor.id,
+      professorQuery: professor.name,
+      newProfessor: "",
+    });
+  };
+
+  const confirmCreate = () => {
+    if (!pendingCreate) return;
+    if (pendingCreate.kind === "school") {
+      setSchoolId("__new");
+      setNewSchool(pendingCreate.name);
+      setSchoolQuery(pendingCreate.name);
+      resetProfessors();
+    } else if (pendingCreate.rowId) {
+      updateRow(pendingCreate.rowId, {
+        professorId: "__new",
+        professorQuery: pendingCreate.name,
+        newProfessor: pendingCreate.name,
+      });
+    }
+    setPendingCreate(null);
+  };
+
+  const addRow = () => {
+    setRows((previous) => [
+      ...previous,
+      emptyCourseRow(`row-${Date.now()}`),
     ]);
   };
 
@@ -93,45 +156,47 @@ export default function OnboardingPage() {
   );
   const hasMajor = Boolean(major.trim());
   const hasSemester = Boolean(semester.trim());
-  const hasCourse = rows.some((row) => row.code.trim() && row.name.trim());
+  const validRows = rows.filter((row) => row.code.trim() && row.name.trim());
+  const hasCourse = validRows.length > 0;
   const canSave = hasSchool && hasMajor && hasSemester && hasCourse;
 
   const handleSave = async () => {
     setAttemptedSave(true);
-    if (!canSave || saving) return;
-    setSaving(true);
-    setSaveError("");
+    setSaveError(null);
+    if (!canSave || isSaving) return;
+
+    const payload: OnboardingRequest = {
+      school:
+        schoolId === "__new"
+          ? { name: newSchool.trim() }
+          : { id: schoolId },
+      semester: semester.trim(),
+      courses: validRows.map((row) => ({
+        code: row.code.trim(),
+        name: row.name.trim(),
+        professor:
+          row.professorId === "__new" && row.newProfessor.trim()
+            ? { name: row.newProfessor.trim() }
+            : row.professorId
+              ? { id: row.professorId }
+              : undefined,
+      })),
+    };
+
+    setIsSaving(true);
     try {
-      // Mock mode (no backend): just mark complete locally.
+      // Mock mode has no write endpoint; persist only with a real backend.
       if (!env.useMocks) {
-        const payload = {
-          school:
-            schoolId === "__new"
-              ? { name: newSchool.trim() }
-              : { id: schoolId },
-          semester: semester.trim(),
-          courses: rows
-            .filter((r) => r.code.trim() && r.name.trim())
-            .map((r) => ({
-              code: r.code.trim(),
-              name: r.name.trim(),
-              professor:
-                r.professorId === "__new"
-                  ? { name: r.newProfessor.trim() }
-                  : r.professorId
-                    ? { id: r.professorId }
-                    : undefined,
-            })),
-        };
-        await apiClient.post("/api/onboarding", payload);
+        await apiClient.post<OnboardingResponse>("/api/onboarding", payload);
       }
       markOnboardingComplete(user?.id);
       setSaved(true);
-    } catch (e) {
-      const err = e as { message?: string };
-      setSaveError(err.message || "Could not save your setup. Please try again.");
+    } catch (error) {
+      setSaveError(
+        (error as ApiError).message || "Could not save your semester setup.",
+      );
     } finally {
-      setSaving(false);
+      setIsSaving(false);
     }
   };
 
@@ -150,8 +215,8 @@ export default function OnboardingPage() {
           <Card className="rounded-lg border-green-200 bg-green-50 shadow-sm">
             <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-green-900">
-                Setup saved for this session. Continue to your dashboard to open
-                a course workspace.
+                Setup saved. Continue to your dashboard to open a course
+                workspace.
               </p>
               <Button asChild>
                 <Link href="/dashboard">Go to Dashboard</Link>
@@ -166,49 +231,89 @@ export default function OnboardingPage() {
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">
-              <Label>School</Label>
+              <Label htmlFor="school-search">School</Label>
               <Input
+                id="school-search"
                 placeholder="Search school or type a new one"
                 value={schoolQuery}
-                onChange={(e) => setSchoolQuery(e.target.value)}
+                onChange={(event) =>
+                  handleSchoolQueryChange(event.target.value)
+                }
+                autoComplete="off"
               />
-              <Select value={schoolId} onValueChange={setSchoolId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select or create school" />
-                </SelectTrigger>
-                <SelectContent>
-                  {filteredSchools.map((school) => (
-                    <SelectItem key={school.id} value={school.id}>
-                      {school.name}
-                    </SelectItem>
+
+              {schoolQuery.trim() && schoolMatches.length > 0 && (
+                <div
+                  className="overflow-hidden rounded-md border"
+                  role="listbox"
+                  aria-label="School suggestions"
+                >
+                  <p className="bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground">
+                    Did you mean?
+                  </p>
+                  {schoolMatches.map(({ item: school, strong }) => (
+                    <button
+                      key={school.id}
+                      type="button"
+                      role="option"
+                      aria-selected={school.id === schoolId}
+                      className="flex w-full items-center justify-between border-t px-3 py-2 text-left text-sm hover:bg-muted"
+                      onClick={() => selectSchool(school)}
+                    >
+                      <span>
+                        <span className="block font-medium">{school.name}</span>
+                        {(school.shortName || school.location) && (
+                          <span className="block text-xs text-muted-foreground">
+                            {[school.shortName, school.location]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </span>
+                        )}
+                      </span>
+                      {strong && (
+                        <span className="text-xs text-muted-foreground">
+                          Match
+                        </span>
+                      )}
+                    </button>
                   ))}
-                  <SelectItem value="__new">Create new school</SelectItem>
-                </SelectContent>
-              </Select>
-              {showCreateSchoolHint && (
+                </div>
+              )}
+
+              {canOfferSchoolCreation && (
                 <div className="rounded-md border bg-muted/30 p-3 text-sm">
                   <p className="text-muted-foreground">
-                    No school found for &quot;{schoolQuery.trim()}&quot;.
+                    No strong school match found.
                   </p>
                   <Button
                     type="button"
                     variant="outline"
                     className="mt-2 w-full"
-                    onClick={() => {
-                      setSchoolId("__new");
-                      setNewSchool(schoolQuery.trim());
-                    }}
+                    onClick={() =>
+                      setPendingCreate({
+                        kind: "school",
+                        name: schoolQuery.trim(),
+                      })
+                    }
                   >
-                    Create new school
+                    Create new &quot;{schoolQuery.trim()}&quot;
                   </Button>
                 </div>
               )}
+
               {schoolId === "__new" && (
-                <Input
-                  placeholder="School name"
-                  value={newSchool}
-                  onChange={(e) => setNewSchool(e.target.value)}
-                />
+                <p className="text-sm">
+                  New school: <span className="font-medium">{newSchool}</span>
+                </p>
+              )}
+              {selectedSchoolId && (
+                <p className="text-sm text-muted-foreground">
+                  Selected:{" "}
+                  <span className="font-medium text-foreground">
+                    {schools.data.find((school) => school.id === selectedSchoolId)
+                      ?.name ?? schoolQuery}
+                  </span>
+                </p>
               )}
             </div>
 
@@ -218,7 +323,7 @@ export default function OnboardingPage() {
                 id="major"
                 placeholder="Type your major, e.g. Computer Science"
                 value={major}
-                onChange={(e) => setMajor(e.target.value)}
+                onChange={(event) => setMajor(event.target.value)}
                 aria-invalid={attemptedSave && !hasMajor}
               />
               {attemptedSave && !hasMajor && (
@@ -233,7 +338,7 @@ export default function OnboardingPage() {
               <Input
                 id="semester"
                 value={semester}
-                onChange={(e) => setSemester(e.target.value)}
+                onChange={(event) => setSemester(event.target.value)}
                 aria-invalid={attemptedSave && !hasSemester}
               />
               {attemptedSave && !hasSemester && (
@@ -258,63 +363,134 @@ export default function OnboardingPage() {
               <span>Course</span>
               <span>Professor</span>
             </div>
-            {rows.map((row) => (
-              <div
-                key={row.id}
-                className="grid gap-3 rounded-md border p-3 md:grid-cols-[8rem_1fr_16rem]"
-              >
-                <Input
-                  placeholder="CSE 101"
-                  value={row.code}
-                  onChange={(e) => updateRow(row.id, { code: e.target.value })}
-                />
-                <Input
-                  placeholder="Design and Analysis of Algorithms"
-                  value={row.name}
-                  onChange={(e) => updateRow(row.id, { name: e.target.value })}
-                />
-                <div className="space-y-2">
-                  <Select
-                    value={row.professorId}
-                    onValueChange={(value) =>
-                      updateRow(row.id, { professorId: value })
+            {rows.map((row) => {
+              const professorMatches = rankMatches(
+                professors.data,
+                row.professorQuery,
+              );
+              const hasStrongProfessorMatch = professorMatches.some(
+                (match) => match.strong,
+              );
+              const canOfferProfessorCreation =
+                hasSchool &&
+                row.professorQuery.trim().length > 0 &&
+                !hasStrongProfessorMatch &&
+                row.professorId !== "__new";
+
+              return (
+                <div
+                  key={row.id}
+                  className="grid gap-3 rounded-md border p-3 md:grid-cols-[8rem_1fr_16rem]"
+                >
+                  <Input
+                    aria-label="Course code"
+                    placeholder="CSE 101"
+                    value={row.code}
+                    onChange={(event) =>
+                      updateRow(row.id, { code: event.target.value })
                     }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select/create professor" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {professorOptions.map((professor) => (
-                        <SelectItem key={professor.id} value={professor.id}>
-                          {professor.name}
-                        </SelectItem>
-                      ))}
-                      <SelectItem value="__new">Create new professor</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {row.professorId === "__new" && (
+                  />
+                  <Input
+                    aria-label="Course name"
+                    placeholder="Design and Analysis of Algorithms"
+                    value={row.name}
+                    onChange={(event) =>
+                      updateRow(row.id, { name: event.target.value })
+                    }
+                  />
+                  <div className="space-y-2">
                     <Input
-                      placeholder="Professor name"
-                      value={row.newProfessor}
-                      onChange={(e) =>
-                        updateRow(row.id, { newProfessor: e.target.value })
+                      aria-label="Professor search"
+                      placeholder={
+                        hasSchool
+                          ? "Search professor"
+                          : "Select a school first"
                       }
+                      value={row.professorQuery}
+                      disabled={!hasSchool}
+                      onChange={(event) =>
+                        updateRow(row.id, {
+                          professorQuery: event.target.value,
+                          professorId: "",
+                          newProfessor: "",
+                        })
+                      }
+                      autoComplete="off"
                     />
-                  )}
+
+                    {row.professorQuery.trim() &&
+                      professorMatches.length > 0 && (
+                        <div
+                          className="overflow-hidden rounded-md border"
+                          role="listbox"
+                          aria-label="Professor suggestions"
+                        >
+                          <p className="bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground">
+                            Did you mean?
+                          </p>
+                          {professorMatches.map(({ item: professor }) => (
+                            <button
+                              key={professor.id}
+                              type="button"
+                              role="option"
+                              aria-selected={professor.id === row.professorId}
+                              className="w-full border-t px-3 py-2 text-left text-sm hover:bg-muted"
+                              onClick={() =>
+                                selectProfessor(row.id, professor)
+                              }
+                            >
+                              <span className="block font-medium">
+                                {professor.name}
+                              </span>
+                              {professor.department && (
+                                <span className="block text-xs text-muted-foreground">
+                                  {professor.department}
+                                </span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                    {canOfferProfessorCreation && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full whitespace-normal"
+                        onClick={() =>
+                          setPendingCreate({
+                            kind: "professor",
+                            name: row.professorQuery.trim(),
+                            rowId: row.id,
+                          })
+                        }
+                      >
+                        Create new &quot;{row.professorQuery.trim()}&quot;
+                      </Button>
+                    )}
+
+                    {row.professorId === "__new" && (
+                      <p className="text-xs text-muted-foreground">
+                        New professor at {newSchool || schoolQuery}:{" "}
+                        <span className="font-medium text-foreground">
+                          {row.newProfessor}
+                        </span>
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             <div className="flex justify-end">
-              <Button onClick={handleSave} disabled={saving}>
-                {saving ? "Saving..." : "Save and continue"}
+              <Button
+                type="button"
+                onClick={handleSave}
+                disabled={isSaving}
+              >
+                {isSaving ? "Saving..." : "Save and continue"}
               </Button>
             </div>
-            {saveError && (
-              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-                {saveError}
-              </div>
-            )}
             {attemptedSave && !canSave && (
               <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
                 Complete the required setup fields:
@@ -331,9 +507,50 @@ export default function OnboardingPage() {
                 </span>
               </div>
             )}
+            {saveError && (
+              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                {saveError}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
+
+      <Dialog
+        open={pendingCreate !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingCreate(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Create new {pendingCreate?.kind ?? "entry"}?
+            </DialogTitle>
+            <DialogDescription>
+              No strong existing match was found for &quot;
+              {pendingCreate?.name}&quot;. Confirm the spelling before creating
+              it
+              {pendingCreate?.kind === "professor"
+                ? ` at ${newSchool || schoolQuery}`
+                : ""}
+              .
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setPendingCreate(null)}
+            >
+              Cancel
+            </Button>
+            <Button type="button" onClick={confirmCreate}>
+              Confirm create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </ProtectedRoute>
   );
 }
