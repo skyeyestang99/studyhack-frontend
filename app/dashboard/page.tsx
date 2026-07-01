@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEntities } from "@/hooks/useEntities";
-import { LoadingState } from "@/components/dashboard/LoadingState";
+import { DashboardSkeleton } from "@/components/dashboard/DashboardSkeleton";
 import { ErrorState } from "@/components/dashboard/ErrorState";
 import {
   Card,
@@ -60,12 +60,7 @@ export default function DashboardPage() {
   }, [courses.data, selectedSchoolId]);
 
   if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <LoadingState />
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   if (error) {
@@ -88,24 +83,28 @@ export default function DashboardPage() {
             Choose a course workspace to upload materials or ask StudyAI.
           </p>
         </div>
-        <div className="w-full lg:w-72">
-          <Select value={selectedSchoolId} onValueChange={setSelectedSchoolId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Filter by school" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Schools</SelectItem>
-              {schools.data.map((school) => (
-                <SelectItem key={school.id} value={school.id}>
-                  {school.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {courses.data.length > 0 && (
+          <div className="w-full lg:w-72">
+            <Select value={selectedSchoolId} onValueChange={setSelectedSchoolId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Filter by school" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Schools</SelectItem>
+                {schools.data.map((school) => (
+                  <SelectItem key={school.id} value={school.id}>
+                    {school.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
-      <ExamReminderStrip courses={visibleCourses} />
+      {courses.data.length > 0 && (
+        <ExamReminderStrip courses={visibleCourses} />
+      )}
 
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-4">
@@ -117,18 +116,41 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {visibleCourses.length === 0 ? (
+        {courses.data.length === 0 ? (
+          <Card className="rounded-lg shadow-sm">
+            <CardContent className="flex flex-col items-center gap-4 px-6 py-12 text-center">
+              <div className="rounded-full bg-primary/10 p-3">
+                <BookOpen className="h-8 w-8 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold">
+                  Add your first course
+                </h3>
+                <p className="mt-1 max-w-md text-sm text-muted-foreground">
+                  Set up a course to organize materials, ask questions, and
+                  start studying with StudyAI.
+                </p>
+              </div>
+              <Button asChild>
+                <Link href="/onboarding">Add a course</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        ) : visibleCourses.length === 0 ? (
           <Card className="rounded-lg shadow-sm">
             <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
               <BookOpen className="h-10 w-10 text-muted-foreground" />
               <div>
                 <p className="font-medium">No courses match this school.</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Add a school, professor, and course to create a workspace.
+                  Choose another school or show all of your courses.
                 </p>
               </div>
-              <Button asChild>
-                <Link href="/onboarding">Set Up Courses</Link>
+              <Button
+                variant="outline"
+                onClick={() => setSelectedSchoolId("all")}
+              >
+                Show all courses
               </Button>
             </CardContent>
           </Card>
