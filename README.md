@@ -32,6 +32,23 @@ NEXT_PUBLIC_USE_MOCKS=true
 
 With mocks on, `AuthContext` auto-signs-in a demo user and all data comes from `lib/mock-data.ts`. To run against the real backend instead, set `NEXT_PUBLIC_USE_MOCKS=false` and start the backend on `:8080`. **Env vars are read only at startup — restart `npm run dev` after changing `.env.local`.**
 
+To manually verify non-default dashboard states, set one of these scenarios
+in `.env.local` and restart the dev server:
+
+```bash
+# New user with no enrollments
+NEXT_PUBLIC_MOCK_SCENARIO=empty-courses
+
+# Keep the loading skeleton visible for 1.5 seconds
+NEXT_PUBLIC_MOCK_SCENARIO=loading
+
+# Show API error and retry states
+NEXT_PUBLIC_MOCK_SCENARIO=error
+```
+
+`NEXT_PUBLIC_MOCK_DELAY_MS` can override the response delay for any scenario.
+Return to `NEXT_PUBLIC_MOCK_SCENARIO=default` for the original seeded courses.
+
 > ⚠️ **First load is slow.** Next.js dev compiles each route on first visit — a heavy page (e.g. `/dashboard`, `/dashboard/qa`) can take **30–80s the first time** and looks frozen, but isn't. Subsequent loads are instant. (Production `next build` does not have this.)
 >
 > ⚠️ **Start at `/dashboard` or `/onboarding`, not `/`.** The root `/` page is a legacy landing page that pings the backend health check on `:8080`, so it will spin/error in mock mode. The app lives at `/dashboard`, `/onboarding`, and `/courses/<id>`.
@@ -45,6 +62,8 @@ Copy `.env.local.example` to `.env.local` and configure:
 | `NEXT_PUBLIC_API_URL`    | Backend API URL                                          | `http://localhost:8080` |
 | `NEXT_PUBLIC_APP_ENV`    | Environment label                                        | `local`                 |
 | `NEXT_PUBLIC_USE_MOCKS`  | Serve built-in mock data; run UI without a backend       | `true`                  |
+| `NEXT_PUBLIC_MOCK_SCENARIO` | Mock state: `default`, `empty-courses`, `loading`, or `error` | `default` |
+| `NEXT_PUBLIC_MOCK_DELAY_MS` | Optional mock response delay in milliseconds          | `0`                     |
 
 ## Available Commands
 

@@ -7,6 +7,7 @@ import type {
   StudyMaterialResponse,
   UserProfile,
 } from "@/types/api";
+import type { MockScenario } from "@/lib/env";
 
 export interface SyllabusEvent {
   id: string;
@@ -194,13 +195,18 @@ function filterByQuery<T extends { courseId?: string; status?: string }>(
   });
 }
 
-export function getMockResponse<T>(path: string): T | undefined {
+export function getMockResponse<T>(
+  path: string,
+  scenario: MockScenario = "default",
+): T | undefined {
   const url = new URL(path, "http://mock.local");
   const pathname = url.pathname;
 
   if (pathname === "/api/schools") return mockSchools as T;
   if (pathname === "/api/professors") return mockProfessors as T;
-  if (pathname === "/api/courses") return mockCourses as T;
+  if (pathname === "/api/courses") {
+    return (scenario === "empty-courses" ? [] : mockCourses) as T;
+  }
   if (pathname === "/api/materials") {
     return filterByQuery(mockMaterials, url) as T;
   }
