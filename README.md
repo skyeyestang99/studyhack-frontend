@@ -1,159 +1,100 @@
-# StudyAI Frontend
+# StudyHack Frontend
 
-Next.js 14 application with TypeScript, Tailwind CSS, shadcn/ui, and JWT-based authentication.
+Next.js 14 · TypeScript · Tailwind · shadcn/ui · **Clerk auth**. UI for the StudyHack platform (frontend → backend → agent).
+
+## The stack (3 repos)
+- **studyhack-frontend** (this repo, Vercel) — the UI.
+- **studyhack-backend** (`:8080`) — API, Postgres/R2, auth, materials, conversations.
+- **studyhack-agent** (`:2024`) — retrieval + LLM chat server.
+
+You can run the UI **alone with mock data**, or the **full stack** for the real end-to-end flow.
 
 ## Prerequisites
-
 - Node.js 20+
-- (Optional) Backend running on http://localhost:8080 — only needed when **not** using mock mode (see [backend/README.md](../backend/README.md))
+- A **Clerk publishable key** (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`) — required even in mock mode (the app is wrapped in `<ClerkProvider>`).
+- For full-stack testing: the `studyhack-backend` and `studyhack-agent` repos running locally, each with their own `.env` (Neon, R2, Clerk secret, OpenAI). See their READMEs.
 
 ## Setup
-
 ```bash
-# 1. Install dependencies
 npm install
-
-# 2. Copy environment variables
-cp .env.local.example .env.local
-
-# 3. Start development server
-npm run dev
+cp .env.local.example .env.local   # then fill in the Clerk key
+npm run dev                        # http://localhost:3000
 ```
+> Start at **`/dashboard`** or **`/onboarding`**, not `/` (the root is a legacy landing page).
+> Env vars are read **only at startup** — restart `npm run dev` after editing `.env.local`.
 
-Then open **http://localhost:3000/dashboard**.
+---
 
-### Run standalone (mock mode — no backend)
+## Local testing
 
-The UI ships with built-in mock data so you can run it without the Spring backend or a database. `.env.local.example` defaults to mock mode:
-
+### Mode A — Frontend only (mock data, no backend) — fastest
+Serves built-in mock data; no backend/agent/DB needed.
 ```
 NEXT_PUBLIC_USE_MOCKS=true
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
 ```
+`npm run dev` → sign in with Clerk → the UI runs on mock data (`lib/mock-data.ts`).
 
-With mocks on, `AuthContext` auto-signs-in a demo user and all data comes from `lib/mock-data.ts`. To run against the real backend instead, set `NEXT_PUBLIC_USE_MOCKS=false` and start the backend on `:8080`. **Env vars are read only at startup — restart `npm run dev` after changing `.env.local`.**
+Exercise specific dashboard states with a scenario (restart after changing):
+```
+NEXT_PUBLIC_MOCK_SCENARIO=empty-courses   # no enrollments (empty state)
+NEXT_PUBLIC_MOCK_SCENARIO=loading         # loading skeleton
+NEXT_PUBLIC_MOCK_SCENARIO=error           # error + retry
+NEXT_PUBLIC_MOCK_SCENARIO=default         # seeded courses (default)
+```
+(Note: in mock mode nothing persists — onboarding just marks complete locally.)
 
-To manually verify non-default dashboard states, set one of these scenarios
-in `.env.local` and restart the dev server:
-
+### Mode B — Full stack (real backend + agent) — end-to-end
+Run three terminals:
 ```bash
-# New user with no enrollments
-NEXT_PUBLIC_MOCK_SCENARIO=empty-courses
+# 1) agent (needed only for REAL answers)
+cd ../studyhack-agent   && npm run dev              # :2024
 
-# Keep the loading skeleton visible for 1.5 seconds
-NEXT_PUBLIC_MOCK_SCENARIO=loading
+# 2) backend  — real Clerk auth (mockAuth=false)
+cd ../studyhack-backend && npm run dev              # :8080  (mock agent, free)
+#    ...or for REAL grounded answers via the agent + OpenAI:
+cd ../studyhack-backend && USE_MOCK_AGENT=false npm run dev
 
-# Show API error and retry states
-NEXT_PUBLIC_MOCK_SCENARIO=error
+# 3) frontend — point at the backend, mocks OFF
+#    .env.local: NEXT_PUBLIC_USE_MOCKS=false, NEXT_PUBLIC_API_URL=http://localhost:8080
+cd ../studyhack-frontend && npm run dev             # :3000
 ```
+Then the real flow:
+1. **Sign in** with Clerk.
+2. **Onboarding** → add a course (use **`MATH 20D`** to hit the seeded study materials) → this persists to the backend and enrolls you.
+3. **Dashboard** lists your enrolled courses → open one → **Chat** → ask a question → the answer streams back (Approach → Solution → Key Takeaways).
 
-`NEXT_PUBLIC_MOCK_DELAY_MS` can override the response delay for any scenario.
-Return to `NEXT_PUBLIC_MOCK_SCENARIO=default` for the original seeded courses.
+**Agent modes (backend `USE_MOCK_AGENT`):** `true` = canned reply, $0 (default); `false` = real retrieval + OpenAI (agent must be running on `:2024`).
 
-> ⚠️ **First load is slow.** Next.js dev compiles each route on first visit — a heavy page (e.g. `/dashboard`, `/dashboard/qa`) can take **30–80s the first time** and looks frozen, but isn't. Subsequent loads are instant. (Production `next build` does not have this.)
->
-> ⚠️ **Start at `/dashboard` or `/onboarding`, not `/`.** The root `/` page is a legacy landing page that pings the backend health check on `:8080`, so it will spin/error in mock mode. The app lives at `/dashboard`, `/onboarding`, and `/courses/<id>`.
+> For seeded content in a course, the backend team seeds materials (`npm run seed:materials`) and they're embedded via the agent's `npm run ingest`. Chat against **MATH 20D** to see grounded answers + citations.
 
-## Environment Variables
+---
 
-Copy `.env.local.example` to `.env.local` and configure:
+## Environment variables
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `NEXT_PUBLIC_API_URL` | Backend API URL | `http://localhost:8080` |
+| `NEXT_PUBLIC_USE_MOCKS` | Serve built-in mock data (run UI without a backend) | `true` |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk publishable key (**required**) | — |
+| `NEXT_PUBLIC_APP_ENV` | Environment label | `local` |
+| `NEXT_PUBLIC_MOCK_SCENARIO` | Mock state: `default` / `empty-courses` / `loading` / `error` | `default` |
+| `NEXT_PUBLIC_MOCK_DELAY_MS` | Optional mock response delay (ms) | `0` |
 
-| Variable                 | Description                                              | Default                 |
-| ------------------------ | -------------------------------------------------------- | ----------------------- |
-| `NEXT_PUBLIC_API_URL`    | Backend API URL                                          | `http://localhost:8080` |
-| `NEXT_PUBLIC_APP_ENV`    | Environment label                                        | `local`                 |
-| `NEXT_PUBLIC_USE_MOCKS`  | Serve built-in mock data; run UI without a backend       | `true`                  |
-| `NEXT_PUBLIC_MOCK_SCENARIO` | Mock state: `default`, `empty-courses`, `loading`, or `error` | `default` |
-| `NEXT_PUBLIC_MOCK_DELAY_MS` | Optional mock response delay in milliseconds          | `0`                     |
+## Commands
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Dev server (port 3000) |
+| `npm run build` | Production build |
+| `npm run type-check` | TypeScript check |
+| `npm test` | Vitest |
+| `npm run lint` | ESLint |
 
-## Available Commands
-
-| Command              | Description                          |
-| -------------------- | ------------------------------------ |
-| `npm run dev`        | Start development server (port 3000) |
-| `npm run build`      | Create production build              |
-| `npm run start`      | Start production server              |
-| `npm run lint`       | Run ESLint                           |
-| `npm run type-check` | Run TypeScript type checking         |
-
-## Pages
-
-| Route        | Description                             | Auth      |
-| ------------ | --------------------------------------- | --------- |
-| `/`          | Landing page with health check status   | Public    |
-| `/login`     | Login form (redirects to /dashboard)    | Public    |
-| `/register`  | Registration form (redirects to /login) | Public    |
-| `/dashboard` | User dashboard                          | Protected |
-
-Authenticated users are redirected away from `/login` and `/register`. Unauthenticated users are redirected to `/login` from protected pages.
-
-## Project Structure
-
-```
-frontend/
-├── app/
-│   ├── layout.tsx           # Root layout (AuthProvider + Navigation + Footer)
-│   ├── page.tsx             # Landing page with health check
-│   ├── login/page.tsx       # Login form
-│   ├── register/page.tsx    # Registration form
-│   ├── dashboard/page.tsx   # Protected dashboard
-│   └── globals.css
-├── components/
-│   ├── ui/                  # shadcn/ui components (button, card, input)
-│   ├── auth/
-│   │   └── ProtectedRoute.tsx  # Auth guard component
-│   └── layout/
-│       ├── Navigation.tsx
-│       └── Footer.tsx
-├── contexts/
-│   └── AuthContext.tsx       # JWT token + user state management
-├── lib/
-│   ├── api-client.ts        # HTTP client with auth headers + 401 handling
-│   ├── env.ts               # Environment variable validation
-│   └── utils.ts
-├── types/
-│   └── api.ts               # TypeScript interfaces for API
-├── .env.local.example
-├── next.config.js
-├── tailwind.config.ts
-├── tsconfig.json
-└── package.json
-```
-
-## Authentication Flow
-
-1. User registers at `/register` → backend creates account → redirected to `/login`
-2. User logs in at `/login` → backend returns JWT + user profile → stored in localStorage via `AuthContext`
-3. `api-client.ts` automatically injects `Authorization: Bearer <token>` on all requests
-4. On 401 response, the client clears the token and redirects to `/login`
-5. `ProtectedRoute` component guards pages that require authentication
+## Authentication (Clerk)
+Auth is handled by **Clerk** (`<ClerkProvider>` in `app/layout.tsx`, `<SignIn>`/`<SignUp>` on `/login` and `/register`). `contexts/AuthContext` is a thin adapter exposing `useAuth()` over Clerk; `lib/auth-token.ts` supplies the Clerk session token to the API client, uploads, and the chat SSE. Route protection: `middleware.ts` + `components/auth/ProtectedRoute`.
 
 ## Troubleshooting
-
-### Page stuck on an infinite loading spinner
-
-You're not in mock mode and there's no backend. Set `NEXT_PUBLIC_USE_MOCKS=true` in `.env.local`, then **restart** `npm run dev` (env is read at startup). Also navigate to `/dashboard`, not `/`.
-
-### First page load takes ~30–80s
-
-Normal for Next.js dev — it compiles each route on first visit (heavy deps: KaTeX, react-markdown, radix). It's compiling, not frozen; subsequent loads are milliseconds. Run `npm run build` for a production-style compile that avoids per-route lazy compilation.
-
-### Health check shows "DOWN" or connection error
-
-Make sure the backend is running and Docker services are up:
-
-```bash
-curl http://localhost:8080/api/health
-docker-compose up -d
-```
-
-### TypeScript errors
-
-```bash
-npx tsc --noEmit
-```
-
-### Port 3000 already in use
-
-```bash
-npx next dev -p 3001
-```
+- **No Clerk login / blank auth:** ensure `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` is set and you're on an up-to-date branch (Clerk is on `main`). Restart after setting env.
+- **Empty dashboard / "can't create course":** you're in mock mode — set `NEXT_PUBLIC_USE_MOCKS=false` (and run the backend) for real data, then restart.
+- **Chat "failed to send":** make sure the backend is current (SSE responses need CORS headers) and, for real answers, the agent is running on `:2024` with `USE_MOCK_AGENT=false`.
+- **First page load ~30–80s:** normal Next.js dev per-route compilation; not frozen. `npm run build` avoids it.
+- **Port 3000 in use:** `npx next dev -p 3001`.
