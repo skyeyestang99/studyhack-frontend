@@ -39,6 +39,26 @@ async function buildHeaders(config?: RequestConfig): Promise<Record<string, stri
   return headers;
 }
 
+function createMockError(path: string): ApiError {
+  return {
+    timestamp: new Date().toISOString(),
+    status: 503,
+    error: "Mock Service Unavailable",
+    message: "Mock API error. Retry or select another mock scenario.",
+    path,
+  };
+}
+
+async function applyMockScenario(path: string) {
+  const delayMs = env.mockDelayMs ?? 0;
+  if (delayMs > 0) {
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  if (env.mockScenario === "error") {
+    throw createMockError(path);
+  }
+}
+
 async function handleResponse<T>(response: Response): Promise<T> {
   if (response.ok) {
     // Handle 204 No Content
@@ -106,7 +126,11 @@ async function request<T>(
   const pathWithParams = buildUrl(path, config?.params);
   const mockPath = new URL(pathWithParams).pathname + new URL(pathWithParams).search;
   if (env.useMocks) {
-    const mockResponse = getMockResponse<T>(mockPath);
+    await applyMockScenario(path);
+    const mockResponse = getMockResponse<T>(
+      mockPath,
+      env.mockScenario ?? "default",
+    );
     if (mockResponse !== undefined) return mockResponse;
   }
 
@@ -144,7 +168,10 @@ async function request<T>(
 
     // Network error
     if (method === "GET") {
-      const mockResponse = getMockResponse<T>(mockPath);
+      const mockResponse = getMockResponse<T>(
+        mockPath,
+        env.mockScenario ?? "default",
+      );
       if (mockResponse !== undefined) return mockResponse;
     }
 
