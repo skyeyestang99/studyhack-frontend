@@ -19,29 +19,28 @@ import {
 } from "lucide-react";
 import type { Course, Conversation, ChatMessage } from "@/types/api";
 import { DeleteDialog } from "@/components/dashboard/DeleteDialog";
+import { getAuthToken } from "@/lib/auth-token";
 import { toast } from "sonner";
 
 const MAX_QUESTION_LENGTH = 5000;
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-function getToken() {
-  return localStorage.getItem("token");
-}
-
 async function apiGet<T>(path: string): Promise<T> {
+  const token = await getAuthToken();
   const res = await fetch(`${API_URL}${path}`, {
-    headers: { Authorization: `Bearer ${getToken()}` },
+    headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) throw new Error("Request failed");
   return res.json();
 }
 
 async function apiPost<T>(path: string, body: unknown): Promise<T> {
+  const token = await getAuthToken();
   const res = await fetch(`${API_URL}${path}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${getToken()}`,
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(body),
   });
@@ -135,9 +134,10 @@ export default function QAPage() {
     if (!deleteTarget) return;
     setIsDeleting(true);
     try {
+      const token = await getAuthToken();
       await fetch(`${API_URL}/api/conversations/${deleteTarget.id}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${getToken()}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       toast.success("Conversation deleted");
       if (activeConversation?.id === deleteTarget.id) {
@@ -224,11 +224,12 @@ export default function QAPage() {
     async (path: string, method: string, body?: unknown) => {
       setStreamingText("");
 
+      const token = await getAuthToken();
       const res = await fetch(`${API_URL}${path}`, {
         method,
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${getToken()}`,
+          Authorization: `Bearer ${token}`,
         },
         ...(body ? { body: JSON.stringify(body) } : {}),
       });

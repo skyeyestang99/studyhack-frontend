@@ -7,10 +7,11 @@ import { hasCompletedOnboarding } from "@/lib/onboarding-state";
 
 export function OnboardingGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { isAuthenticated, user } = useAuth();
+  const { isLoaded, isAuthenticated, user } = useAuth();
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
+    if (!isLoaded) return;
     if (!isAuthenticated || !user) {
       setChecked(true);
       return;
@@ -22,7 +23,7 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
     }
 
     setChecked(true);
-  }, [isAuthenticated, router, user]);
+  }, [isLoaded, isAuthenticated, router, user]);
 
   if (!checked) return null;
 
