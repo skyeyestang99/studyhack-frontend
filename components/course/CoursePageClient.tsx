@@ -103,10 +103,16 @@ export function CoursePageClient({ courseId, view }: CoursePageClientProps) {
             <CourseChatPanel course={course} compact />
           </div>
         )}
-        {(view === "exams" || view === "study-guide") && (
+        {view === "exams" && (
           <div className="space-y-6">
             <SyllabusPanel course={course} />
             <CourseMaterialsPanel course={course} materialType="EXAM" />
+          </div>
+        )}
+        {view === "study-guide" && (
+          <div className="space-y-6">
+            <SyllabusPanel course={course} />
+            <CourseMaterialsPanel course={course} />
           </div>
         )}
         {view === "syllabus" && <SyllabusPanel course={course} />}
