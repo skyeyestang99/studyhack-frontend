@@ -190,7 +190,7 @@ export function UploadDialog({
         <DialogHeader>
           <DialogTitle>Upload Study Material</DialogTitle>
           <DialogDescription>
-            Add PDF, Word, or PowerPoint files to the selected course.
+            Add PDF, text, or Markdown files to the selected course.
           </DialogDescription>
         </DialogHeader>
 
@@ -215,10 +215,10 @@ export function UploadDialog({
             >
               <UploadCloud className="mx-auto mb-2 h-7 w-7 text-muted-foreground" />
               <p className="text-sm font-medium">
-                Drag and drop a PDF, Word, or PowerPoint file
+                Drag and drop a PDF, text, or Markdown file
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                PDF, DOC, DOCX, PPT, PPTX
+                PDF, TXT, MD
               </p>
             </div>
             <Input
@@ -226,7 +226,7 @@ export function UploadDialog({
               ref={fileInputRef}
               type="file"
               multiple
-              accept=".pdf,.doc,.docx,.ppt,.pptx"
+              accept=".pdf,.txt,.md"
               onChange={(e) => handleFiles(e.target.files)}
             />
             {files.length > 0 && (
