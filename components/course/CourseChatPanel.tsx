@@ -6,7 +6,7 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
-import { MessageCircleQuestion, Plus, Send, Sparkles, Trash2 } from "lucide-react";
+import { MessageCircleQuestion, Plus, Send, Sparkles, Square, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { env } from "@/lib/env";
 import { getMockResponse } from "@/lib/mock-data";
@@ -75,6 +75,7 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
   const [deleteTarget, setDeleteTarget] = useState<Conversation | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -99,107 +100,121 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
   const streamSSE = useCallback(
     async (path: string, method: string, body?: unknown) => {
       setStreamingText("");
-
-      if (env.useMocks) {
-        const content =
-          body && typeof body === "object" && "content" in body
-            ? String((body as { content: string }).content)
-            : "your question";
-        const response = `From your **Exam: ${course.code} Midterm Review.pdf** (Source #1), here is a focused answer for "${content}".\n\n**Approach**\n\nIdentify the course concept, connect it to uploaded materials, and solve one step at a time.\n\n**Solution**\n\nUse the relevant definition, then apply it to the specific problem. For math, render inline formulas like $T(n)=2T(n/2)+n$ and display formulas with $$T(n)=O(n\\log n)$$.\n\n**Key Takeaways**\n\nReview the cited source and practice a similar problem before the exam.`;
-        let accumulated = "";
-        for (const char of response) {
-          accumulated += char;
-          setStreamingText(accumulated);
-          await new Promise((resolve) => setTimeout(resolve, 3));
-        }
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `assistant-${Date.now()}`,
-            role: "assistant",
-            content: response,
-            createdAt: new Date().toISOString(),
-          },
-        ]);
-        setStreamingText("");
-        setIsStreaming(false);
-        return;
-      }
-
-      const token = await getAuthToken();
-      const res = await fetch(`${env.apiUrl}${path}`, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        ...(body ? { body: JSON.stringify(body) } : {}),
-      });
-
-      if (!res.ok) throw new Error("Stream request failed");
-
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let currentEventType = "";
+      const controller = new AbortController();
+      abortRef.current = controller;
       let accumulated = "";
+      let finalized = false;
 
-      while (reader) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      // Commit whatever has streamed so far as the assistant message (once).
+      const finalize = () => {
+        if (finalized) return;
+        finalized = true;
+        if (accumulated) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `assistant-${Date.now()}`,
+              role: "assistant",
+              content: accumulated,
+              createdAt: new Date().toISOString(),
+            },
+          ]);
+        }
+        setStreamingText("");
+      };
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (line.startsWith("event:")) {
-            currentEventType = line.substring(6).trim();
-            continue;
+      try {
+        if (env.useMocks) {
+          const content =
+            body && typeof body === "object" && "content" in body
+              ? String((body as { content: string }).content)
+              : "your question";
+          const response = `From your **Exam: ${course.code} Midterm Review.pdf** (Source #1), here is a focused answer for "${content}".\n\n**Approach**\n\nIdentify the course concept, connect it to uploaded materials, and solve one step at a time.\n\n**Solution**\n\nUse the relevant definition, then apply it to the specific problem. For math, render inline formulas like $T(n)=2T(n/2)+n$ and display formulas with $$T(n)=O(n\\log n)$$.\n\n**Key Takeaways**\n\nReview the cited source and practice a similar problem before the exam.`;
+          for (const char of response) {
+            if (controller.signal.aborted) break;
+            accumulated += char;
+            setStreamingText(accumulated);
+            await new Promise((resolve) => setTimeout(resolve, 3));
           }
-          if (line.startsWith("data:")) {
-            const rawData = line.substring(5);
-            const data =
-              rawData.length > 0 && rawData[0] === " "
-                ? rawData.substring(1)
-                : rawData;
+          finalize();
+          return;
+        }
 
-            if (currentEventType === "token") {
-              try {
-                const token = JSON.parse(data);
-                accumulated += token;
-              } catch {
-                accumulated += data;
-              }
-              setStreamingText(accumulated);
-            } else if (currentEventType === "done") {
-              setMessages((prev) => [
-                ...prev,
-                {
-                  id: `assistant-${Date.now()}`,
-                  role: "assistant",
-                  content: accumulated,
-                  createdAt: new Date().toISOString(),
-                },
-              ]);
-              setStreamingText("");
-            } else if (currentEventType === "error") {
-              try {
-                const parsed = JSON.parse(data);
-                setError(parsed.message || "An error occurred");
-              } catch {
-                setError(data);
-              }
+        const token = await getAuthToken();
+        const res = await fetch(`${env.apiUrl}${path}`, {
+          method,
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          signal: controller.signal,
+          ...(body ? { body: JSON.stringify(body) } : {}),
+        });
+
+        if (!res.ok) throw new Error("Stream request failed");
+
+        const reader = res.body?.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let currentEventType = "";
+
+        while (reader) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+
+          for (const line of lines) {
+            if (line.startsWith("event:")) {
+              currentEventType = line.substring(6).trim();
+              continue;
             }
-            currentEventType = "";
+            if (line.startsWith("data:")) {
+              const rawData = line.substring(5);
+              const data =
+                rawData.length > 0 && rawData[0] === " "
+                  ? rawData.substring(1)
+                  : rawData;
+
+              if (currentEventType === "token") {
+                try {
+                  accumulated += JSON.parse(data);
+                } catch {
+                  accumulated += data;
+                }
+                setStreamingText(accumulated);
+              } else if (currentEventType === "done") {
+                finalize();
+              } else if (currentEventType === "error") {
+                try {
+                  const parsed = JSON.parse(data);
+                  setError(parsed.message || "An error occurred");
+                } catch {
+                  setError(data);
+                }
+              }
+              currentEventType = "";
+            }
           }
         }
+      } catch (e) {
+        // Stopping mid-stream is not an error — keep the partial answer.
+        if ((e as Error).name === "AbortError") {
+          finalize();
+        } else {
+          throw e;
+        }
+      } finally {
+        abortRef.current = null;
+        setIsStreaming(false);
       }
-
-      setIsStreaming(false);
     },
     [course.code],
   );
+
+  const handleStop = () => abortRef.current?.abort();
 
   const openConversation = async (conv: Conversation) => {
     setActiveConversation(conv);
@@ -435,6 +450,16 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                     >
                       Start conversation
                     </Button>
+                    {isStreaming && (
+                      <Button
+                        variant="outline"
+                        onClick={handleStop}
+                        aria-label="Stop generating"
+                      >
+                        <Square className="mr-2 h-4 w-4" />
+                        Stop
+                      </Button>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -512,16 +537,28 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                     onChange={(e) => setInputText(e.target.value)}
                     onKeyDown={handleKeyDown}
                     disabled={isStreaming}
+                    maxLength={MAX_QUESTION_LENGTH}
                     rows={1}
                   />
-                  <Button
-                    onClick={handleSendMessage}
-                    disabled={!inputText.trim() || isStreaming}
-                    size="icon"
-                    aria-label="Send message"
-                  >
-                    <Send className="h-4 w-4" />
-                  </Button>
+                  {isStreaming ? (
+                    <Button
+                      onClick={handleStop}
+                      size="icon"
+                      variant="outline"
+                      aria-label="Stop generating"
+                    >
+                      <Square className="h-4 w-4" />
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={handleSendMessage}
+                      disabled={!inputText.trim()}
+                      size="icon"
+                      aria-label="Send message"
+                    >
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
             )}
