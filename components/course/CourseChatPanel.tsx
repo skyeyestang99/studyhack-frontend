@@ -10,7 +10,7 @@ import { MessageCircleQuestion, Plus, Send, Sparkles, Square, Trash2 } from "luc
 import { toast } from "sonner";
 import { env } from "@/lib/env";
 import { getMockResponse } from "@/lib/mock-data";
-import type { ChatMessage, Conversation, Course } from "@/types/api";
+import type { ChatMessage, Citation, Conversation, Course } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DeleteDialog } from "@/components/dashboard/DeleteDialog";
@@ -104,6 +104,7 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
       abortRef.current = controller;
       let accumulated = "";
       let finalized = false;
+      const citations: Citation[] = [];
 
       // Commit whatever has streamed so far as the assistant message (once).
       const finalize = () => {
@@ -117,6 +118,7 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
               role: "assistant",
               content: accumulated,
               createdAt: new Date().toISOString(),
+              citations: citations.length ? [...citations] : undefined,
             },
           ]);
         }
@@ -136,6 +138,12 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
             setStreamingText(accumulated);
             await new Promise((resolve) => setTimeout(resolve, 3));
           }
+          citations.push({
+            materialId: "mock-material",
+            fileName: `${course.code} Midterm Review.pdf`,
+            score: 0.91,
+            kind: "shared",
+          });
           finalize();
           return;
         }
@@ -185,6 +193,13 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                   accumulated += data;
                 }
                 setStreamingText(accumulated);
+              } else if (currentEventType === "citation") {
+                try {
+                  const c = JSON.parse(data) as Citation;
+                  if (c?.fileName) citations.push(c);
+                } catch {
+                  // ignore malformed citation frames
+                }
               } else if (currentEventType === "done") {
                 finalize();
               } else if (currentEventType === "error") {
@@ -479,13 +494,35 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                         }`}
                       >
                         {msg.role === "assistant" ? (
-                          <div className="prose prose-sm max-w-none dark:prose-invert">
-                            <Markdown
-                              remarkPlugins={[remarkGfm, remarkMath]}
-                              rehypePlugins={[rehypeKatex]}
-                            >
-                              {msg.content}
-                            </Markdown>
+                          <div>
+                            <div className="prose prose-sm max-w-none dark:prose-invert">
+                              <Markdown
+                                remarkPlugins={[remarkGfm, remarkMath]}
+                                rehypePlugins={[rehypeKatex]}
+                              >
+                                {msg.content}
+                              </Markdown>
+                            </div>
+                            {msg.citations && msg.citations.length > 0 && (
+                              <div className="mt-3 border-t pt-2">
+                                <p className="text-xs font-semibold text-muted-foreground">
+                                  Sources
+                                </p>
+                                <ul className="mt-1 space-y-1">
+                                  {msg.citations.map((c, i) => (
+                                    <li
+                                      key={`${c.materialId}-${i}`}
+                                      className="flex items-center gap-2 text-xs text-muted-foreground"
+                                    >
+                                      <span className="truncate">{c.fileName}</span>
+                                      <span className="shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-600">
+                                        {Math.round(c.score * 100)}% match
+                                      </span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <p className="whitespace-pre-wrap text-sm">

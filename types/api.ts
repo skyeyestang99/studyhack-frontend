@@ -121,11 +121,22 @@ export interface Conversation {
   updatedAt: string;
 }
 
+export interface Citation {
+  materialId: string;
+  fileName: string;
+  score: number;
+  kind: "personal" | "shared";
+  page?: number;
+  snippet?: string;
+  previewUrl?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   createdAt: string;
+  citations?: Citation[];
 }
 
 export interface CreateConversationRequest {
