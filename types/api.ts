@@ -131,12 +131,16 @@ export interface Citation {
   previewUrl?: string;
 }
 
+export type GroundingMode = "grounded" | "partial" | "general";
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   createdAt: string;
   citations?: Citation[];
+  mode?: GroundingMode;
+  verified?: boolean;
 }
 
 export interface CreateConversationRequest {
