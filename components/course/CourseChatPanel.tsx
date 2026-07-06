@@ -7,22 +7,32 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import {
+  Flag,
   ImagePlus,
   MessageCircleQuestion,
   Plus,
   Send,
   Sparkles,
   Square,
+  ThumbsDown,
+  ThumbsUp,
   Trash2,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { env } from "@/lib/env";
 import { getMockResponse } from "@/lib/mock-data";
-import type { ChatMessage, Citation, Conversation, Course } from "@/types/api";
+import type {
+  ChatMessage,
+  Citation,
+  Conversation,
+  Course,
+  GroundingMode,
+} from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DeleteDialog } from "@/components/dashboard/DeleteDialog";
+import { GroundingBadge } from "@/components/course/GroundingBadge";
 import { getAuthToken } from "@/lib/auth-token";
 
 interface CourseChatPanelProps {
@@ -107,6 +117,37 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
   const abortRef = useRef<AbortController | null>(null);
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const [streamMode, setStreamMode] = useState<{
+    mode: GroundingMode;
+    topSource?: string;
+  } | null>(null);
+  const [streamVerified, setStreamVerified] = useState(false);
+  const [feedback, setFeedback] = useState<
+    Record<string, { rating?: "up" | "down"; reported?: boolean }>
+  >({});
+
+  // Rate / report an assistant answer (quality-signal loop).
+  const sendFeedback = async (
+    messageId: string,
+    patch: { rating?: "up" | "down"; reported?: boolean; reason?: string },
+  ) => {
+    if (!activeConversation || messageId.startsWith("assistant-")) return;
+    setFeedback((f) => ({ ...f, [messageId]: { ...f[messageId], ...patch } }));
+    try {
+      const token = await getAuthToken();
+      await fetch(
+        `${env.apiUrl}/api/conversations/${activeConversation.id}/messages/${messageId}/feedback`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify(patch),
+        },
+      );
+      if (patch.reported) toast.success("Thanks — flagged for review");
+    } catch {
+      toast.error("Couldn't save feedback");
+    }
+  };
 
   const handleImageSelect = async (file: File | null | undefined) => {
     if (!file) return;
@@ -114,6 +155,22 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
       setAttachedImage(await compressImage(file));
     } catch {
       toast.error("Couldn't read that image");
+    }
+  };
+
+  // Open a cited source material (owner or enrolled) in a new tab.
+  const openSource = async (materialId: string) => {
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${env.apiUrl}/api/materials/${materialId}/preview`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error();
+      const data = (await res.json()) as { previewUrl?: string };
+      if (data.previewUrl) window.open(data.previewUrl, "_blank", "noopener");
+      else throw new Error();
+    } catch {
+      toast.error("Couldn't open that source");
     }
   };
 
@@ -150,25 +207,31 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
   const streamSSE = useCallback(
     async (path: string, method: string, body?: unknown) => {
       setStreamingText("");
+      setStreamMode(null);
+      setStreamVerified(false);
       const controller = new AbortController();
       abortRef.current = controller;
       let accumulated = "";
       let finalized = false;
+      let msgMode: GroundingMode | undefined;
+      let msgVerified = false;
       const citations: Citation[] = [];
 
       // Commit whatever has streamed so far as the assistant message (once).
-      const finalize = () => {
+      const finalize = (messageId?: string) => {
         if (finalized) return;
         finalized = true;
         if (accumulated) {
           setMessages((prev) => [
             ...prev,
             {
-              id: `assistant-${Date.now()}`,
+              id: messageId ?? `assistant-${Date.now()}`,
               role: "assistant",
               content: accumulated,
               createdAt: new Date().toISOString(),
               citations: citations.length ? [...citations] : undefined,
+              mode: msgMode,
+              verified: msgVerified,
             },
           ]);
         }
@@ -188,6 +251,11 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
             setStreamingText(accumulated);
             await new Promise((resolve) => setTimeout(resolve, 3));
           }
+          msgMode = "grounded";
+          setStreamMode({
+            mode: "grounded",
+            topSource: `${course.code} Midterm Review.pdf`,
+          });
           citations.push({
             materialId: "mock-material",
             fileName: `${course.code} Midterm Review.pdf`,
@@ -243,6 +311,20 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                   accumulated += data;
                 }
                 setStreamingText(accumulated);
+              } else if (currentEventType === "mode") {
+                try {
+                  const m = JSON.parse(data) as {
+                    mode: GroundingMode;
+                    topSource?: string;
+                  };
+                  msgMode = m.mode;
+                  setStreamMode(m);
+                } catch {
+                  // ignore malformed mode frame
+                }
+              } else if (currentEventType === "verification") {
+                msgVerified = true;
+                setStreamVerified(true);
               } else if (currentEventType === "citation") {
                 try {
                   const c = JSON.parse(data) as Citation;
@@ -251,7 +333,12 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                   // ignore malformed citation frames
                 }
               } else if (currentEventType === "done") {
-                finalize();
+                try {
+                  const d = JSON.parse(data) as { messageId?: string };
+                  finalize(d?.messageId);
+                } catch {
+                  finalize();
+                }
               } else if (currentEventType === "error") {
                 try {
                   const parsed = JSON.parse(data);
@@ -594,6 +681,16 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                       >
                         {msg.role === "assistant" ? (
                           <div>
+                            {(msg.mode || msg.verified) && (
+                              <div className="mb-2 flex flex-wrap items-center gap-2">
+                                {msg.mode && <GroundingBadge mode={msg.mode} />}
+                                {msg.verified && (
+                                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
+                                    ✓ Steps checked
+                                  </span>
+                                )}
+                              </div>
+                            )}
                             <div className="prose prose-sm max-w-none dark:prose-invert">
                               <Markdown
                                 remarkPlugins={[remarkGfm, remarkMath]}
@@ -613,13 +710,56 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                                       key={`${c.materialId}-${i}`}
                                       className="flex items-center gap-2 text-xs text-muted-foreground"
                                     >
-                                      <span className="truncate">{c.fileName}</span>
+                                      <button
+                                        onClick={() => openSource(c.materialId)}
+                                        className="truncate text-left text-blue-700 hover:underline"
+                                        title="Open source material"
+                                      >
+                                        {c.fileName}
+                                      </button>
                                       <span className="shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-600">
                                         {Math.round(c.score * 100)}% match
                                       </span>
                                     </li>
                                   ))}
                                 </ul>
+                              </div>
+                            )}
+                            {msg.mode === "general" && (
+                              <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                                This wasn&apos;t found in your course materials.{" "}
+                                <Link
+                                  href={`/courses/${course.id}/materials`}
+                                  className="font-medium underline"
+                                >
+                                  Upload the relevant notes
+                                </Link>{" "}
+                                for a course-specific answer.
+                              </div>
+                            )}
+                            {!msg.id.startsWith("assistant-") && (
+                              <div className="mt-2 flex items-center gap-1 text-muted-foreground">
+                                <button
+                                  onClick={() => sendFeedback(msg.id, { rating: "up" })}
+                                  className={`rounded p-1 hover:bg-neutral-100 ${feedback[msg.id]?.rating === "up" ? "text-green-600" : ""}`}
+                                  aria-label="Helpful"
+                                >
+                                  <ThumbsUp className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => sendFeedback(msg.id, { rating: "down" })}
+                                  className={`rounded p-1 hover:bg-neutral-100 ${feedback[msg.id]?.rating === "down" ? "text-red-600" : ""}`}
+                                  aria-label="Not helpful"
+                                >
+                                  <ThumbsDown className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => sendFeedback(msg.id, { reported: true })}
+                                  className={`rounded p-1 hover:bg-neutral-100 ${feedback[msg.id]?.reported ? "text-amber-600" : ""}`}
+                                  aria-label="Report this answer"
+                                >
+                                  <Flag className="h-3.5 w-3.5" />
+                                </button>
                               </div>
                             )}
                           </div>
@@ -635,6 +775,21 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                   {isStreaming && (
                     <div className="flex justify-start">
                       <div className="max-w-[84%] rounded-2xl border bg-white px-4 py-3 shadow-sm">
+                        {(streamMode || streamVerified) && (
+                          <div className="mb-2 flex flex-wrap items-center gap-2">
+                            {streamMode && (
+                              <GroundingBadge
+                                mode={streamMode.mode}
+                                topSource={streamMode.topSource}
+                              />
+                            )}
+                            {streamVerified && (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
+                                ✓ Steps checked
+                              </span>
+                            )}
+                          </div>
+                        )}
                         {streamingText ? (
                           <div className="prose prose-sm max-w-none dark:prose-invert">
                             <Markdown
