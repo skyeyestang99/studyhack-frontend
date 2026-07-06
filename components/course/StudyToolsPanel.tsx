@@ -8,10 +8,11 @@ import rehypeKatex from "rehype-katex";
 import { BookOpen, ListChecks, Loader2, Sparkles, Square } from "lucide-react";
 import { env } from "@/lib/env";
 import { getAuthToken } from "@/lib/auth-token";
-import type { Citation, Course } from "@/types/api";
+import type { Citation, Course, GroundingMode } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { GroundingBadge } from "@/components/course/GroundingBadge";
 
 type Kind = "study_guide" | "practice_problems";
 
@@ -19,6 +20,9 @@ export function StudyToolsPanel({ course }: { course: Course }) {
   const [topic, setTopic] = useState("");
   const [output, setOutput] = useState("");
   const [citations, setCitations] = useState<Citation[]>([]);
+  const [mode, setMode] = useState<{ mode: GroundingMode; topSource?: string } | null>(
+    null,
+  );
   const [running, setRunning] = useState<Kind | null>(null);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -28,6 +32,7 @@ export function StudyToolsPanel({ course }: { course: Course }) {
     setRunning(kind);
     setOutput("");
     setCitations([]);
+    setMode(null);
     setError(null);
     const controller = new AbortController();
     abortRef.current = controller;
@@ -72,6 +77,12 @@ export function StudyToolsPanel({ course }: { course: Course }) {
                 acc += data;
               }
               setOutput(acc);
+            } else if (evType === "mode") {
+              try {
+                setMode(JSON.parse(data));
+              } catch {
+                // ignore malformed mode frame
+              }
             } else if (evType === "citation") {
               try {
                 const c = JSON.parse(data) as Citation;
@@ -159,6 +170,11 @@ export function StudyToolsPanel({ course }: { course: Course }) {
 
         {output && (
           <div className="rounded-xl border bg-neutral-50/50 p-4">
+            {mode && (
+              <div className="mb-2">
+                <GroundingBadge mode={mode.mode} topSource={mode.topSource} />
+              </div>
+            )}
             <div className="prose prose-sm max-w-none dark:prose-invert">
               <Markdown
                 remarkPlugins={[remarkGfm, remarkMath]}

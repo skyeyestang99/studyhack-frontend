@@ -19,10 +19,17 @@ import {
 import { toast } from "sonner";
 import { env } from "@/lib/env";
 import { getMockResponse } from "@/lib/mock-data";
-import type { ChatMessage, Citation, Conversation, Course } from "@/types/api";
+import type {
+  ChatMessage,
+  Citation,
+  Conversation,
+  Course,
+  GroundingMode,
+} from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DeleteDialog } from "@/components/dashboard/DeleteDialog";
+import { GroundingBadge } from "@/components/course/GroundingBadge";
 import { getAuthToken } from "@/lib/auth-token";
 
 interface CourseChatPanelProps {
@@ -107,6 +114,10 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
   const abortRef = useRef<AbortController | null>(null);
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const [streamMode, setStreamMode] = useState<{
+    mode: GroundingMode;
+    topSource?: string;
+  } | null>(null);
 
   const handleImageSelect = async (file: File | null | undefined) => {
     if (!file) return;
@@ -150,10 +161,12 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
   const streamSSE = useCallback(
     async (path: string, method: string, body?: unknown) => {
       setStreamingText("");
+      setStreamMode(null);
       const controller = new AbortController();
       abortRef.current = controller;
       let accumulated = "";
       let finalized = false;
+      let msgMode: GroundingMode | undefined;
       const citations: Citation[] = [];
 
       // Commit whatever has streamed so far as the assistant message (once).
@@ -169,6 +182,7 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
               content: accumulated,
               createdAt: new Date().toISOString(),
               citations: citations.length ? [...citations] : undefined,
+              mode: msgMode,
             },
           ]);
         }
@@ -188,6 +202,11 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
             setStreamingText(accumulated);
             await new Promise((resolve) => setTimeout(resolve, 3));
           }
+          msgMode = "grounded";
+          setStreamMode({
+            mode: "grounded",
+            topSource: `${course.code} Midterm Review.pdf`,
+          });
           citations.push({
             materialId: "mock-material",
             fileName: `${course.code} Midterm Review.pdf`,
@@ -243,6 +262,17 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                   accumulated += data;
                 }
                 setStreamingText(accumulated);
+              } else if (currentEventType === "mode") {
+                try {
+                  const m = JSON.parse(data) as {
+                    mode: GroundingMode;
+                    topSource?: string;
+                  };
+                  msgMode = m.mode;
+                  setStreamMode(m);
+                } catch {
+                  // ignore malformed mode frame
+                }
               } else if (currentEventType === "citation") {
                 try {
                   const c = JSON.parse(data) as Citation;
@@ -594,6 +624,11 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                       >
                         {msg.role === "assistant" ? (
                           <div>
+                            {msg.mode && (
+                              <div className="mb-2">
+                                <GroundingBadge mode={msg.mode} />
+                              </div>
+                            )}
                             <div className="prose prose-sm max-w-none dark:prose-invert">
                               <Markdown
                                 remarkPlugins={[remarkGfm, remarkMath]}
@@ -635,6 +670,14 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                   {isStreaming && (
                     <div className="flex justify-start">
                       <div className="max-w-[84%] rounded-2xl border bg-white px-4 py-3 shadow-sm">
+                        {streamMode && (
+                          <div className="mb-2">
+                            <GroundingBadge
+                              mode={streamMode.mode}
+                              topSource={streamMode.topSource}
+                            />
+                          </div>
+                        )}
                         {streamingText ? (
                           <div className="prose prose-sm max-w-none dark:prose-invert">
                             <Markdown
