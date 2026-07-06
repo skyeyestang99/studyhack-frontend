@@ -6,7 +6,16 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
-import { MessageCircleQuestion, Plus, Send, Sparkles, Square, Trash2 } from "lucide-react";
+import {
+  ImagePlus,
+  MessageCircleQuestion,
+  Plus,
+  Send,
+  Sparkles,
+  Square,
+  Trash2,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { env } from "@/lib/env";
 import { getMockResponse } from "@/lib/mock-data";
@@ -22,6 +31,25 @@ interface CourseChatPanelProps {
 }
 
 const MAX_QUESTION_LENGTH = 5000;
+
+/** Downscale + JPEG-compress an image to a data URL so it fits the chat body limit. */
+async function compressImage(
+  file: File,
+  maxDim = 1280,
+  quality = 0.7,
+): Promise<string> {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
+  const w = Math.round(bitmap.width * scale);
+  const h = Math.round(bitmap.height * scale);
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("canvas unavailable");
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  return canvas.toDataURL("image/jpeg", quality);
+}
 
 async function apiGet<T>(path: string): Promise<T> {
   if (env.useMocks) {
@@ -77,6 +105,17 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const [attachedImage, setAttachedImage] = useState<string | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageSelect = async (file: File | null | undefined) => {
+    if (!file) return;
+    try {
+      setAttachedImage(await compressImage(file));
+    } catch {
+      toast.error("Couldn't read that image");
+    }
+  };
 
   const loadConversations = useCallback(async () => {
     try {
@@ -257,11 +296,12 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
   };
 
   const handleCreateConversation = async () => {
-    const content = questionText.trim();
+    const content = questionText.trim() || (attachedImage ? "Please help with this problem." : "");
     if (!content || isStreaming) return;
 
     setIsStreaming(true);
     setError(null);
+    const image = attachedImage;
 
     try {
       const conv = await apiPost<Conversation>("/api/conversations", {
@@ -273,12 +313,17 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
         {
           id: "temp-user",
           role: "user",
-          content,
+          content: image ? `📷 ${content}` : content,
           createdAt: new Date().toISOString(),
         },
       ]);
       setQuestionText("");
-      await streamSSE(`/api/conversations/${conv.id}/stream`, "POST");
+      setAttachedImage(null);
+      await streamSSE(
+        `/api/conversations/${conv.id}/stream`,
+        "POST",
+        image ? { imageDataUrl: image } : undefined,
+      );
       loadConversations();
     } catch {
       setError("Failed to start conversation. Please try again.");
@@ -287,17 +332,20 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
   };
 
   const handleSendMessage = async () => {
-    if (!activeConversation || !inputText.trim() || isStreaming) return;
-    const content = inputText.trim();
+    if (!activeConversation || isStreaming) return;
+    const content = inputText.trim() || (attachedImage ? "Please help with this problem." : "");
+    if (!content) return;
     setInputText("");
     setIsStreaming(true);
     setError(null);
+    const image = attachedImage;
+    setAttachedImage(null);
     setMessages((prev) => [
       ...prev,
       {
         id: `temp-${Date.now()}`,
         role: "user",
-        content,
+        content: image ? `📷 ${content}` : content,
         createdAt: new Date().toISOString(),
       },
     ]);
@@ -306,7 +354,7 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
       await streamSSE(
         `/api/conversations/${activeConversation.id}/messages`,
         "POST",
-        { content },
+        image ? { content, imageDataUrl: image } : { content },
       );
       loadConversations();
     } catch {
@@ -443,6 +491,16 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
           </div>
 
           <div className="flex min-h-[28rem] flex-col overflow-hidden rounded-xl border bg-white">
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                handleImageSelect(e.target.files?.[0]);
+                e.target.value = "";
+              }}
+            />
             <div ref={scrollContainerRef} className="flex-1 overflow-y-auto bg-gradient-to-b from-neutral-50/70 to-white p-4">
               {!activeConversation ? (
                 <div className="flex h-full flex-col items-center justify-center gap-5 text-center text-muted-foreground">
@@ -466,26 +524,56 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                     disabled={isStreaming}
                     maxLength={MAX_QUESTION_LENGTH}
                   />
-                  <div className="flex w-full max-w-xl items-center justify-between">
+                  {attachedImage && (
+                    <div className="flex w-full max-w-xl items-center gap-2">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={attachedImage}
+                        alt="attachment preview"
+                        className="h-14 w-14 rounded-md border object-cover"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setAttachedImage(null)}
+                        aria-label="Remove image"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                  <div className="flex w-full max-w-xl items-center justify-between gap-2">
                     <span className="text-xs">
                       {questionText.length} / {MAX_QUESTION_LENGTH}
                     </span>
-                    <Button
-                      onClick={handleCreateConversation}
-                      disabled={!questionText.trim() || isStreaming}
-                    >
-                      Start conversation
-                    </Button>
-                    {isStreaming && (
+                    <div className="flex items-center gap-2">
                       <Button
                         variant="outline"
-                        onClick={handleStop}
-                        aria-label="Stop generating"
+                        size="icon"
+                        onClick={() => imageInputRef.current?.click()}
+                        disabled={isStreaming}
+                        aria-label="Attach image"
                       >
-                        <Square className="mr-2 h-4 w-4" />
-                        Stop
+                        <ImagePlus className="h-4 w-4" />
                       </Button>
-                    )}
+                      {isStreaming ? (
+                        <Button
+                          variant="outline"
+                          onClick={handleStop}
+                          aria-label="Stop generating"
+                        >
+                          <Square className="mr-2 h-4 w-4" />
+                          Stop
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={handleCreateConversation}
+                          disabled={!questionText.trim() && !attachedImage}
+                        >
+                          Start conversation
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -577,36 +665,65 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
 
             {activeConversation && (
               <div className="border-t bg-white p-3">
-                <div className="mx-auto flex max-w-3xl gap-2">
-                  <textarea
-                    className="min-h-[44px] max-h-[120px] flex-1 resize-none rounded-xl border bg-neutral-50 px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    placeholder="Type your follow-up question..."
-                    value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    disabled={isStreaming}
-                    maxLength={MAX_QUESTION_LENGTH}
-                    rows={1}
-                  />
-                  {isStreaming ? (
+                <div className="mx-auto max-w-3xl space-y-2">
+                  {attachedImage && (
+                    <div className="flex items-center gap-2">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={attachedImage}
+                        alt="attachment preview"
+                        className="h-14 w-14 rounded-md border object-cover"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setAttachedImage(null)}
+                        aria-label="Remove image"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
                     <Button
-                      onClick={handleStop}
+                      onClick={() => imageInputRef.current?.click()}
                       size="icon"
                       variant="outline"
-                      aria-label="Stop generating"
+                      disabled={isStreaming}
+                      aria-label="Attach image"
                     >
-                      <Square className="h-4 w-4" />
+                      <ImagePlus className="h-4 w-4" />
                     </Button>
-                  ) : (
-                    <Button
-                      onClick={handleSendMessage}
-                      disabled={!inputText.trim()}
-                      size="icon"
-                      aria-label="Send message"
-                    >
-                      <Send className="h-4 w-4" />
-                    </Button>
-                  )}
+                    <textarea
+                      className="min-h-[44px] max-h-[120px] flex-1 resize-none rounded-xl border bg-neutral-50 px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      placeholder="Type your follow-up question..."
+                      value={inputText}
+                      onChange={(e) => setInputText(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      disabled={isStreaming}
+                      maxLength={MAX_QUESTION_LENGTH}
+                      rows={1}
+                    />
+                    {isStreaming ? (
+                      <Button
+                        onClick={handleStop}
+                        size="icon"
+                        variant="outline"
+                        aria-label="Stop generating"
+                      >
+                        <Square className="h-4 w-4" />
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={handleSendMessage}
+                        disabled={!inputText.trim() && !attachedImage}
+                        size="icon"
+                        aria-label="Send message"
+                      >
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
