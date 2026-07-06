@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarDays, FileText, Sparkles } from "lucide-react";
+import { CalendarDays, FileText, Plus, Sparkles, Trash2, X } from "lucide-react";
+import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import type { Course } from "@/types/api";
 import type { SyllabusEvent } from "@/lib/mock-data";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   StudyGuideMode,
@@ -38,6 +40,11 @@ export function SyllabusPanel({ course, compact = false }: SyllabusPanelProps) {
   const [events, setEvents] = useState<SyllabusEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<StudyGuideMode>("personal");
+  const [showForm, setShowForm] = useState(false);
+  const [title, setTitle] = useState("");
+  const [type, setType] = useState("MIDTERM");
+  const [dueAt, setDueAt] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const loadEvents = useCallback(async () => {
     try {
@@ -64,6 +71,37 @@ export function SyllabusPanel({ course, compact = false }: SyllabusPanelProps) {
     loadEvents();
   }, [loadEvents]);
 
+  const addEvent = async () => {
+    if (!title.trim() || !dueAt) return;
+    setSaving(true);
+    try {
+      await apiClient.post("/api/syllabus-events", {
+        courseId: course.id,
+        title: title.trim(),
+        type,
+        dueAt: new Date(dueAt).toISOString(),
+      });
+      setTitle("");
+      setDueAt("");
+      setType("MIDTERM");
+      setShowForm(false);
+      loadEvents();
+    } catch {
+      toast.error("Couldn't add that event");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteEvent = async (id: string) => {
+    try {
+      await apiClient.delete(`/api/syllabus-events/${id}`);
+      setEvents((prev) => prev.filter((e) => e.id !== id));
+    } catch {
+      toast.error("Couldn't delete that event");
+    }
+  };
+
   const upcomingExam = useMemo(
     () =>
       events.find(
@@ -87,10 +125,54 @@ export function SyllabusPanel({ course, compact = false }: SyllabusPanelProps) {
               course materials.
             </p>
           </div>
+          <Button variant="outline" size="sm" onClick={() => setShowForm((s) => !s)}>
+            {showForm ? (
+              <X className="mr-2 h-4 w-4" />
+            ) : (
+              <Plus className="mr-2 h-4 w-4" />
+            )}
+            {showForm ? "Cancel" : "Add date"}
+          </Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
         <StudyGuideModeToggle value={mode} onChange={setMode} />
+
+        {showForm && (
+          <div className="space-y-2 rounded-xl border bg-neutral-50 p-3">
+            <Input
+              placeholder="Title (e.g. Midterm 2, Homework 6)"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+            <div className="flex flex-wrap gap-2">
+              <select
+                value={type}
+                onChange={(e) => setType(e.target.value)}
+                className="rounded-md border bg-white px-2 py-1 text-sm"
+              >
+                <option value="MIDTERM">Midterm</option>
+                <option value="FINAL">Final</option>
+                <option value="HOMEWORK">Homework</option>
+                <option value="READING">Reading</option>
+                <option value="OTHER">Other</option>
+              </select>
+              <Input
+                type="datetime-local"
+                value={dueAt}
+                onChange={(e) => setDueAt(e.target.value)}
+                className="flex-1"
+              />
+              <Button
+                size="sm"
+                onClick={addEvent}
+                disabled={!title.trim() || !dueAt || saving}
+              >
+                {saving ? "Adding…" : "Add"}
+              </Button>
+            </div>
+          </div>
+        )}
 
         {mode === "global" && (
           <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
@@ -135,11 +217,20 @@ export function SyllabusPanel({ course, compact = false }: SyllabusPanelProps) {
                     {event.type} · {formatDate(event.dueAt)}
                   </p>
                 </div>
-                <span className="rounded-full border bg-neutral-50 px-2 py-0.5 text-xs text-muted-foreground">
-                  {daysUntil(event.dueAt) >= 0
-                    ? `${daysUntil(event.dueAt)}d`
-                    : "Past"}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full border bg-neutral-50 px-2 py-0.5 text-xs text-muted-foreground">
+                    {daysUntil(event.dueAt) >= 0
+                      ? `${daysUntil(event.dueAt)}d`
+                      : "Past"}
+                  </span>
+                  <button
+                    onClick={() => deleteEvent(event.id)}
+                    className="text-muted-foreground hover:text-destructive"
+                    aria-label={`Delete ${event.title}`}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
