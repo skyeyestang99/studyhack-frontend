@@ -65,3 +65,20 @@
     --chart-5: 340 75% 55%;
   }
 }
+
+/* Mobile hardening: keep wide content (display math, code, tables, long tokens)
+   scrolling WITHIN its container instead of breaking the page layout on phones. */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 2px;
+}
+.prose pre,
+.prose table {
+  overflow-x: auto;
+  display: block;
+  max-width: 100%;
+}
+.prose {
+  overflow-wrap: anywhere;
+}
