@@ -118,6 +118,7 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
     mode: GroundingMode;
     topSource?: string;
   } | null>(null);
+  const [streamVerified, setStreamVerified] = useState(false);
 
   const handleImageSelect = async (file: File | null | undefined) => {
     if (!file) return;
@@ -162,11 +163,13 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
     async (path: string, method: string, body?: unknown) => {
       setStreamingText("");
       setStreamMode(null);
+      setStreamVerified(false);
       const controller = new AbortController();
       abortRef.current = controller;
       let accumulated = "";
       let finalized = false;
       let msgMode: GroundingMode | undefined;
+      let msgVerified = false;
       const citations: Citation[] = [];
 
       // Commit whatever has streamed so far as the assistant message (once).
@@ -183,6 +186,7 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
               createdAt: new Date().toISOString(),
               citations: citations.length ? [...citations] : undefined,
               mode: msgMode,
+              verified: msgVerified,
             },
           ]);
         }
@@ -273,6 +277,9 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                 } catch {
                   // ignore malformed mode frame
                 }
+              } else if (currentEventType === "verification") {
+                msgVerified = true;
+                setStreamVerified(true);
               } else if (currentEventType === "citation") {
                 try {
                   const c = JSON.parse(data) as Citation;
@@ -624,9 +631,14 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                       >
                         {msg.role === "assistant" ? (
                           <div>
-                            {msg.mode && (
-                              <div className="mb-2">
-                                <GroundingBadge mode={msg.mode} />
+                            {(msg.mode || msg.verified) && (
+                              <div className="mb-2 flex flex-wrap items-center gap-2">
+                                {msg.mode && <GroundingBadge mode={msg.mode} />}
+                                {msg.verified && (
+                                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
+                                    ✓ Steps checked
+                                  </span>
+                                )}
                               </div>
                             )}
                             <div className="prose prose-sm max-w-none dark:prose-invert">
@@ -670,12 +682,19 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                   {isStreaming && (
                     <div className="flex justify-start">
                       <div className="max-w-[84%] rounded-2xl border bg-white px-4 py-3 shadow-sm">
-                        {streamMode && (
-                          <div className="mb-2">
-                            <GroundingBadge
-                              mode={streamMode.mode}
-                              topSource={streamMode.topSource}
-                            />
+                        {(streamMode || streamVerified) && (
+                          <div className="mb-2 flex flex-wrap items-center gap-2">
+                            {streamMode && (
+                              <GroundingBadge
+                                mode={streamMode.mode}
+                                topSource={streamMode.topSource}
+                              />
+                            )}
+                            {streamVerified && (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
+                                ✓ Steps checked
+                              </span>
+                            )}
                           </div>
                         )}
                         {streamingText ? (

@@ -140,6 +140,7 @@ export interface ChatMessage {
   createdAt: string;
   citations?: Citation[];
   mode?: GroundingMode;
+  verified?: boolean;
 }
 
 export interface CreateConversationRequest {
