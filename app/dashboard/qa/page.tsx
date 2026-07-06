@@ -77,6 +77,7 @@ export default function QAPage() {
   const [error, setError] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Delete conversation state
@@ -88,9 +89,16 @@ export default function QAPage() {
     loadConversations();
   }, []);
 
-  // Auto-scroll to bottom when messages change
+  // Auto-scroll to bottom when messages change — scroll ONLY the chat
+  // container, not the window (scrollIntoView scrolls every scrollable
+  // ancestor and dragged the whole page down on each streamed token).
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.clientHeight - el.scrollTop;
+    if (distanceFromBottom < 120) {
+      el.scrollTop = el.scrollHeight;
+    }
   }, [messages, streamingText]);
 
   const loadConversations = async () => {
@@ -451,7 +459,7 @@ export default function QAPage() {
           // Active conversation chat
           <>
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4">
+            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4">
               <div className="mx-auto max-w-3xl space-y-4">
                 {messages.map((msg) => (
                   <div

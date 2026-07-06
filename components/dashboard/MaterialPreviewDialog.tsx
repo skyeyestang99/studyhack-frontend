@@ -35,7 +35,7 @@ export function MaterialPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-5xl overflow-hidden p-0">
+      <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto p-0">
         <DialogHeader className="border-b px-6 py-4">
           <DialogTitle className="pr-8">{material.fileName}</DialogTitle>
           <DialogDescription>
