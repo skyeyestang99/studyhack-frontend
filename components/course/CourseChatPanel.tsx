@@ -7,12 +7,15 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import {
+  Flag,
   ImagePlus,
   MessageCircleQuestion,
   Plus,
   Send,
   Sparkles,
   Square,
+  ThumbsDown,
+  ThumbsUp,
   Trash2,
   X,
 } from "lucide-react";
@@ -119,6 +122,32 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
     topSource?: string;
   } | null>(null);
   const [streamVerified, setStreamVerified] = useState(false);
+  const [feedback, setFeedback] = useState<
+    Record<string, { rating?: "up" | "down"; reported?: boolean }>
+  >({});
+
+  // Rate / report an assistant answer (quality-signal loop).
+  const sendFeedback = async (
+    messageId: string,
+    patch: { rating?: "up" | "down"; reported?: boolean; reason?: string },
+  ) => {
+    if (!activeConversation || messageId.startsWith("assistant-")) return;
+    setFeedback((f) => ({ ...f, [messageId]: { ...f[messageId], ...patch } }));
+    try {
+      const token = await getAuthToken();
+      await fetch(
+        `${env.apiUrl}/api/conversations/${activeConversation.id}/messages/${messageId}/feedback`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify(patch),
+        },
+      );
+      if (patch.reported) toast.success("Thanks — flagged for review");
+    } catch {
+      toast.error("Couldn't save feedback");
+    }
+  };
 
   const handleImageSelect = async (file: File | null | undefined) => {
     if (!file) return;
@@ -189,14 +218,14 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
       const citations: Citation[] = [];
 
       // Commit whatever has streamed so far as the assistant message (once).
-      const finalize = () => {
+      const finalize = (messageId?: string) => {
         if (finalized) return;
         finalized = true;
         if (accumulated) {
           setMessages((prev) => [
             ...prev,
             {
-              id: `assistant-${Date.now()}`,
+              id: messageId ?? `assistant-${Date.now()}`,
               role: "assistant",
               content: accumulated,
               createdAt: new Date().toISOString(),
@@ -304,7 +333,12 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                   // ignore malformed citation frames
                 }
               } else if (currentEventType === "done") {
-                finalize();
+                try {
+                  const d = JSON.parse(data) as { messageId?: string };
+                  finalize(d?.messageId);
+                } catch {
+                  finalize();
+                }
               } else if (currentEventType === "error") {
                 try {
                   const parsed = JSON.parse(data);
@@ -701,6 +735,31 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                                   Upload the relevant notes
                                 </Link>{" "}
                                 for a course-specific answer.
+                              </div>
+                            )}
+                            {!msg.id.startsWith("assistant-") && (
+                              <div className="mt-2 flex items-center gap-1 text-muted-foreground">
+                                <button
+                                  onClick={() => sendFeedback(msg.id, { rating: "up" })}
+                                  className={`rounded p-1 hover:bg-neutral-100 ${feedback[msg.id]?.rating === "up" ? "text-green-600" : ""}`}
+                                  aria-label="Helpful"
+                                >
+                                  <ThumbsUp className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => sendFeedback(msg.id, { rating: "down" })}
+                                  className={`rounded p-1 hover:bg-neutral-100 ${feedback[msg.id]?.rating === "down" ? "text-red-600" : ""}`}
+                                  aria-label="Not helpful"
+                                >
+                                  <ThumbsDown className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => sendFeedback(msg.id, { reported: true })}
+                                  className={`rounded p-1 hover:bg-neutral-100 ${feedback[msg.id]?.reported ? "text-amber-600" : ""}`}
+                                  aria-label="Report this answer"
+                                >
+                                  <Flag className="h-3.5 w-3.5" />
+                                </button>
                               </div>
                             )}
                           </div>
