@@ -75,6 +75,7 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
   const [deleteTarget, setDeleteTarget] = useState<Conversation | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const loadConversations = useCallback(async () => {
@@ -94,7 +95,17 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
   }, [loadConversations]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    // Keep the newest content in view by scrolling ONLY the chat container —
+    // not the whole page. scrollIntoView() scrolls every scrollable ancestor
+    // (incl. the window), so during streaming it dragged the entire page down
+    // on each token. Setting the container's own scrollTop avoids that.
+    // Skip if the user has scrolled up to re-read, so we don't yank them back.
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.clientHeight - el.scrollTop;
+    if (distanceFromBottom < 120) {
+      el.scrollTop = el.scrollHeight;
+    }
   }, [messages, streamingText]);
 
   const streamSSE = useCallback(
@@ -432,7 +443,7 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
           </div>
 
           <div className="flex min-h-[28rem] flex-col overflow-hidden rounded-xl border bg-white">
-            <div className="flex-1 overflow-y-auto bg-gradient-to-b from-neutral-50/70 to-white p-4">
+            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto bg-gradient-to-b from-neutral-50/70 to-white p-4">
               {!activeConversation ? (
                 <div className="flex h-full flex-col items-center justify-center gap-5 text-center text-muted-foreground">
                   <div className="rounded-2xl border bg-white p-3 shadow-sm">
