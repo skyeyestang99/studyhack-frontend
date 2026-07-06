@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import { BookOpen, ListChecks, Loader2, Sparkles, Square } from "lucide-react";
+import { toast } from "sonner";
 import { env } from "@/lib/env";
 import { getAuthToken } from "@/lib/auth-token";
 import type { Citation, Course, GroundingMode } from "@/types/api";
@@ -114,6 +115,21 @@ export function StudyToolsPanel({ course }: { course: Course }) {
 
   const stop = () => abortRef.current?.abort();
 
+  const openSource = async (materialId: string) => {
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${env.apiUrl}/api/materials/${materialId}/preview`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error();
+      const data = (await res.json()) as { previewUrl?: string };
+      if (data.previewUrl) window.open(data.previewUrl, "_blank", "noopener");
+      else throw new Error();
+    } catch {
+      toast.error("Couldn't open that source");
+    }
+  };
+
   return (
     <Card className="overflow-hidden rounded-2xl border-neutral-200 bg-white shadow-sm">
       <CardHeader className="flex flex-row items-center gap-3">
@@ -192,7 +208,13 @@ export function StudyToolsPanel({ course }: { course: Course }) {
                       key={`${c.materialId}-${i}`}
                       className="flex items-center gap-2 text-xs text-muted-foreground"
                     >
-                      <span className="truncate">{c.fileName}</span>
+                      <button
+                        onClick={() => openSource(c.materialId)}
+                        className="truncate text-left text-blue-700 hover:underline"
+                        title="Open source material"
+                      >
+                        {c.fileName}
+                      </button>
                       <span className="shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-600">
                         {Math.round(c.score * 100)}% match
                       </span>

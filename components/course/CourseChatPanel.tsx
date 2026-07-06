@@ -129,6 +129,22 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
     }
   };
 
+  // Open a cited source material (owner or enrolled) in a new tab.
+  const openSource = async (materialId: string) => {
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${env.apiUrl}/api/materials/${materialId}/preview`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error();
+      const data = (await res.json()) as { previewUrl?: string };
+      if (data.previewUrl) window.open(data.previewUrl, "_blank", "noopener");
+      else throw new Error();
+    } catch {
+      toast.error("Couldn't open that source");
+    }
+  };
+
   const loadConversations = useCallback(async () => {
     try {
       setLoadingConversations(true);
@@ -660,13 +676,31 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                                       key={`${c.materialId}-${i}`}
                                       className="flex items-center gap-2 text-xs text-muted-foreground"
                                     >
-                                      <span className="truncate">{c.fileName}</span>
+                                      <button
+                                        onClick={() => openSource(c.materialId)}
+                                        className="truncate text-left text-blue-700 hover:underline"
+                                        title="Open source material"
+                                      >
+                                        {c.fileName}
+                                      </button>
                                       <span className="shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-600">
                                         {Math.round(c.score * 100)}% match
                                       </span>
                                     </li>
                                   ))}
                                 </ul>
+                              </div>
+                            )}
+                            {msg.mode === "general" && (
+                              <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                                This wasn&apos;t found in your course materials.{" "}
+                                <Link
+                                  href={`/courses/${course.id}/materials`}
+                                  className="font-medium underline"
+                                >
+                                  Upload the relevant notes
+                                </Link>{" "}
+                                for a course-specific answer.
                               </div>
                             )}
                           </div>
