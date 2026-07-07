@@ -29,6 +29,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+const NEW_SCHOOL_ID = "__new";
+
 interface CourseRow {
   id: string;
   code: string;
@@ -59,6 +61,7 @@ export default function OnboardingPage() {
   const [schoolId, setSchoolId] = useState("");
   const [schoolQuery, setSchoolQuery] = useState("");
   const [newSchool, setNewSchool] = useState("");
+  const [confirmedNewSchool, setConfirmedNewSchool] = useState("");
   const [major, setMajor] = useState("");
   const [semester, setSemester] = useState("Spring 2026");
   const [saved, setSaved] = useState(false);
@@ -68,7 +71,7 @@ export default function OnboardingPage() {
   const [pendingCreate, setPendingCreate] = useState<PendingCreate | null>(null);
   const [rows, setRows] = useState<CourseRow[]>([emptyCourseRow("row-1")]);
 
-  const selectedSchoolId = schoolId === "__new" ? "" : schoolId;
+  const selectedSchoolId = schoolId === NEW_SCHOOL_ID ? "" : schoolId;
   const professorParams = useMemo(
     () => (selectedSchoolId ? { schoolId: selectedSchoolId } : undefined),
     [selectedSchoolId],
@@ -78,15 +81,35 @@ export default function OnboardingPage() {
     professorParams,
     Boolean(selectedSchoolId),
   );
+  const schoolOptions = useMemo(() => {
+    const trimmedNewSchool = confirmedNewSchool.trim();
+    if (!trimmedNewSchool) return schools.data;
+    const alreadyFetched = schools.data.some(
+      (school) =>
+        school.name.trim().toLowerCase() === trimmedNewSchool.toLowerCase(),
+    );
+    if (alreadyFetched) return schools.data;
+    return [
+      {
+        id: NEW_SCHOOL_ID,
+        name: trimmedNewSchool,
+        shortName: null,
+        aliases: [],
+        location: null,
+        createdAt: "",
+      },
+      ...schools.data,
+    ];
+  }, [confirmedNewSchool, schools.data]);
   const schoolMatches = useMemo(
-    () => rankMatches(schools.data, schoolQuery),
-    [schoolQuery, schools.data],
+    () => rankMatches(schoolOptions, schoolQuery),
+    [schoolOptions, schoolQuery],
   );
   const hasStrongSchoolMatch = schoolMatches.some((match) => match.strong);
   const canOfferSchoolCreation =
     schoolQuery.trim().length > 0 &&
     !hasStrongSchoolMatch &&
-    schoolId !== "__new";
+    schoolId !== NEW_SCHOOL_ID;
 
   const updateRow = (id: string, patch: Partial<CourseRow>) => {
     setRows((previous) =>
@@ -114,7 +137,7 @@ export default function OnboardingPage() {
 
   const selectSchool = (school: School) => {
     setSchoolId(school.id);
-    setNewSchool("");
+    setNewSchool(school.id === NEW_SCHOOL_ID ? school.name : "");
     setSchoolQuery(school.name);
     resetProfessors();
   };
@@ -130,8 +153,9 @@ export default function OnboardingPage() {
   const confirmCreate = () => {
     if (!pendingCreate) return;
     if (pendingCreate.kind === "school") {
-      setSchoolId("__new");
+      setSchoolId(NEW_SCHOOL_ID);
       setNewSchool(pendingCreate.name);
+      setConfirmedNewSchool(pendingCreate.name);
       setSchoolQuery(pendingCreate.name);
       resetProfessors();
     } else if (pendingCreate.rowId) {
@@ -152,7 +176,7 @@ export default function OnboardingPage() {
   };
 
   const hasSchool = Boolean(
-    schoolId && (schoolId !== "__new" || newSchool.trim()),
+    schoolId && (schoolId !== NEW_SCHOOL_ID || newSchool.trim()),
   );
   const hasMajor = Boolean(major.trim());
   const hasSemester = Boolean(semester.trim());
@@ -167,7 +191,7 @@ export default function OnboardingPage() {
 
     const payload: OnboardingRequest = {
       school:
-        schoolId === "__new"
+        schoolId === NEW_SCHOOL_ID
           ? { name: newSchool.trim() }
           : { id: schoolId },
       semester: semester.trim(),
@@ -301,7 +325,7 @@ export default function OnboardingPage() {
                 </div>
               )}
 
-              {schoolId === "__new" && (
+              {schoolId === NEW_SCHOOL_ID && (
                 <p className="text-sm">
                   New school: <span className="font-medium">{newSchool}</span>
                 </p>

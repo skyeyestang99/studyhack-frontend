@@ -143,6 +143,32 @@ describe("student workspace flows", () => {
     );
   });
 
+  it("keeps a confirmed new school searchable in the dropdown", async () => {
+    render(<OnboardingPage />);
+
+    const searchInput = await screen.findByPlaceholderText(
+      "Search school or type a new one",
+    );
+    fireEvent.change(searchInput, { target: { value: "UCI" } });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: 'Create new "UCI"',
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Confirm create" }));
+
+    fireEvent.change(searchInput, { target: { value: "" } });
+    fireEvent.change(searchInput, { target: { value: "UCI" } });
+
+    expect(
+      screen.getByRole("option", { name: /UCI/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: 'Create new "UCI"' }),
+    ).not.toBeInTheDocument();
+  });
+
   it("searches professors only after a school is selected", async () => {
     render(<OnboardingPage />);
 
