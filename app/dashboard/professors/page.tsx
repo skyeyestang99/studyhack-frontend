@@ -111,6 +111,7 @@ export default function ProfessorsPage() {
           name: formData.name,
           department: formData.department || undefined,
           schoolId: formData.schoolId,
+          confirmed: true,
         });
         toast.success("Professor created successfully");
       } else {

@@ -163,6 +163,7 @@ export default function CoursesPage() {
         code: modalValues.code,
         schoolId: modalValues.schoolId,
         professorId: modalValues.professorId,
+        confirmed: modal.mode === "create" ? true : undefined,
       };
       if (modal.mode === "create") {
         await apiClient.post("/api/courses", payload);

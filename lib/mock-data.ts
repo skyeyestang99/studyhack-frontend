@@ -29,12 +29,16 @@ export const mockSchools: School[] = [
   {
     id: "school-ucsd",
     name: "UC San Diego",
+    shortName: "UC San Diego",
+    aliases: ["UCSD", "University of California San Diego"],
     location: "La Jolla, CA",
     createdAt: "2026-01-05T08:00:00.000Z",
   },
   {
     id: "school-ucla",
     name: "UCLA",
+    shortName: "UCLA",
+    aliases: ["University of California Los Angeles"],
     location: "Los Angeles, CA",
     createdAt: "2026-01-05T08:00:00.000Z",
   },
@@ -195,6 +199,40 @@ function filterByQuery<T extends { courseId?: string; status?: string }>(
   });
 }
 
+function mockEntitySearch<
+  T extends { name: string; shortName?: string | null; aliases?: string[]; code?: string },
+>(items: T[], query: string) {
+  const normalized = query.trim().toLowerCase();
+  const matches = normalized
+    ? items
+        .map((item) => {
+          const fields = [
+            item.name,
+            item.shortName ?? "",
+            item.code ?? "",
+            ...(item.aliases ?? []),
+          ].filter(Boolean);
+          const exact = fields.some((field) => field.toLowerCase() === normalized);
+          const partial = fields.some((field) =>
+            field.toLowerCase().includes(normalized),
+          );
+          if (!exact && !partial) return null;
+          return {
+            item,
+            score: exact ? 1 : 0.5,
+            strong: exact,
+          };
+        })
+        .filter((match): match is NonNullable<typeof match> => Boolean(match))
+        .sort((a, b) => b.score - a.score)
+    : [];
+  return {
+    matches,
+    canCreate: matches.every((match) => !match.strong),
+    threshold: 0.65,
+  };
+}
+
 export function getMockResponse<T>(
   path: string,
   scenario: MockScenario = "default",
@@ -202,10 +240,38 @@ export function getMockResponse<T>(
   const url = new URL(path, "http://mock.local");
   const pathname = url.pathname;
 
-  if (pathname === "/api/schools") return mockSchools as T;
-  if (pathname === "/api/professors") return mockProfessors as T;
+  if (pathname === "/api/schools") {
+    const q = url.searchParams.get("q");
+    return (q ? mockEntitySearch(mockSchools, q) : mockSchools) as T;
+  }
+  if (pathname === "/api/professors") {
+    const q = url.searchParams.get("q");
+    const schoolId = url.searchParams.get("schoolId");
+    const professors = schoolId
+      ? mockProfessors.filter((professor) => professor.schoolId === schoolId)
+      : mockProfessors;
+    return (q ? mockEntitySearch(professors, q) : professors) as T;
+  }
+  const schoolProfessorsMatch = pathname.match(/^\/api\/schools\/([^/]+)\/professors$/);
+  if (schoolProfessorsMatch) {
+    const q = url.searchParams.get("q");
+    const professors = mockProfessors.filter(
+      (professor) => professor.schoolId === schoolProfessorsMatch[1],
+    );
+    return (q ? mockEntitySearch(professors, q) : professors) as T;
+  }
   if (pathname === "/api/courses") {
-    return (scenario === "empty-courses" ? [] : mockCourses) as T;
+    const courses = scenario === "empty-courses" ? [] : mockCourses;
+    const q = url.searchParams.get("q");
+    return (q ? mockEntitySearch(courses, q) : courses) as T;
+  }
+  const schoolCoursesMatch = pathname.match(/^\/api\/schools\/([^/]+)\/courses$/);
+  if (schoolCoursesMatch) {
+    const q = url.searchParams.get("q");
+    const courses = mockCourses.filter(
+      (course) => course.schoolId === schoolCoursesMatch[1],
+    );
+    return (q ? mockEntitySearch(courses, q) : courses) as T;
   }
   if (pathname === "/api/materials") {
     return filterByQuery(mockMaterials, url) as T;

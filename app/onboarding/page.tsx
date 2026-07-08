@@ -1,18 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEntities } from "@/hooks/useEntities";
+import { useEntitySearch } from "@/hooks/useEntitySearch";
 import { apiClient } from "@/lib/api-client";
-import { rankMatches } from "@/lib/entity-search";
 import { markOnboardingComplete } from "@/lib/onboarding-state";
 import { env } from "@/lib/env";
 import type {
   ApiError,
   OnboardingRequest,
   OnboardingResponse,
+  Course,
   Professor,
   School,
 } from "@/types/api";
@@ -33,11 +34,13 @@ const NEW_SCHOOL_ID = "__new";
 
 interface CourseRow {
   id: string;
+  courseId: string;
   code: string;
   name: string;
   professorId: string;
   professorQuery: string;
   newProfessor: string;
+  newProfessorConfirmed: boolean;
 }
 
 interface PendingCreate {
@@ -48,11 +51,13 @@ interface PendingCreate {
 
 const emptyCourseRow = (id: string): CourseRow => ({
   id,
+  courseId: "",
   code: "",
   name: "",
   professorId: "",
   professorQuery: "",
   newProfessor: "",
+  newProfessorConfirmed: false,
 });
 
 export default function OnboardingPage() {
@@ -72,43 +77,11 @@ export default function OnboardingPage() {
   const [rows, setRows] = useState<CourseRow[]>([emptyCourseRow("row-1")]);
 
   const selectedSchoolId = schoolId === NEW_SCHOOL_ID ? "" : schoolId;
-  const professorParams = useMemo(
-    () => (selectedSchoolId ? { schoolId: selectedSchoolId } : undefined),
-    [selectedSchoolId],
-  );
-  const professors = useEntities<Professor>(
-    "/api/professors",
-    professorParams,
-    Boolean(selectedSchoolId),
-  );
-  const schoolOptions = useMemo(() => {
-    const trimmedNewSchool = confirmedNewSchool.trim();
-    if (!trimmedNewSchool) return schools.data;
-    const alreadyFetched = schools.data.some(
-      (school) =>
-        school.name.trim().toLowerCase() === trimmedNewSchool.toLowerCase(),
-    );
-    if (alreadyFetched) return schools.data;
-    return [
-      {
-        id: NEW_SCHOOL_ID,
-        name: trimmedNewSchool,
-        shortName: null,
-        aliases: [],
-        location: null,
-        createdAt: "",
-      },
-      ...schools.data,
-    ];
-  }, [confirmedNewSchool, schools.data]);
-  const schoolMatches = useMemo(
-    () => rankMatches(schoolOptions, schoolQuery),
-    [schoolOptions, schoolQuery],
-  );
-  const hasStrongSchoolMatch = schoolMatches.some((match) => match.strong);
+  const schoolSearch = useEntitySearch<School>("/api/schools", schoolQuery);
+  const schoolMatches = schoolSearch.data.matches;
   const canOfferSchoolCreation =
     schoolQuery.trim().length > 0 &&
-    !hasStrongSchoolMatch &&
+    schoolSearch.data.canCreate &&
     schoolId !== NEW_SCHOOL_ID;
 
   const updateRow = (id: string, patch: Partial<CourseRow>) => {
@@ -124,6 +97,7 @@ export default function OnboardingPage() {
         professorId: "",
         professorQuery: "",
         newProfessor: "",
+        newProfessorConfirmed: false,
       })),
     );
   };
@@ -147,6 +121,7 @@ export default function OnboardingPage() {
       professorId: professor.id,
       professorQuery: professor.name,
       newProfessor: "",
+      newProfessorConfirmed: false,
     });
   };
 
@@ -163,6 +138,7 @@ export default function OnboardingPage() {
         professorId: "__new",
         professorQuery: pendingCreate.name,
         newProfessor: pendingCreate.name,
+        newProfessorConfirmed: true,
       });
     }
     setPendingCreate(null);
@@ -192,18 +168,23 @@ export default function OnboardingPage() {
     const payload: OnboardingRequest = {
       school:
         schoolId === NEW_SCHOOL_ID
-          ? { name: newSchool.trim() }
+          ? { name: newSchool.trim(), confirmed: Boolean(confirmedNewSchool) }
           : { id: schoolId },
       semester: semester.trim(),
       courses: validRows.map((row) => ({
+        id: row.courseId || undefined,
         code: row.code.trim(),
         name: row.name.trim(),
         professor:
           row.professorId === "__new" && row.newProfessor.trim()
-            ? { name: row.newProfessor.trim() }
+            ? {
+                name: row.newProfessor.trim(),
+                confirmed: row.newProfessorConfirmed,
+              }
             : row.professorId
               ? { id: row.professorId }
               : undefined,
+        confirmed: true,
       })),
     };
 
@@ -387,124 +368,24 @@ export default function OnboardingPage() {
               <span>Course</span>
               <span>Professor</span>
             </div>
-            {rows.map((row) => {
-              const professorMatches = rankMatches(
-                professors.data,
-                row.professorQuery,
-              );
-              const hasStrongProfessorMatch = professorMatches.some(
-                (match) => match.strong,
-              );
-              const canOfferProfessorCreation =
-                hasSchool &&
-                row.professorQuery.trim().length > 0 &&
-                !hasStrongProfessorMatch &&
-                row.professorId !== "__new";
-
-              return (
-                <div
-                  key={row.id}
-                  className="grid gap-3 rounded-md border p-3 md:grid-cols-[8rem_1fr_16rem]"
-                >
-                  <Input
-                    aria-label="Course code"
-                    placeholder="CSE 101"
-                    value={row.code}
-                    onChange={(event) =>
-                      updateRow(row.id, { code: event.target.value })
-                    }
-                  />
-                  <Input
-                    aria-label="Course name"
-                    placeholder="Design and Analysis of Algorithms"
-                    value={row.name}
-                    onChange={(event) =>
-                      updateRow(row.id, { name: event.target.value })
-                    }
-                  />
-                  <div className="space-y-2">
-                    <Input
-                      aria-label="Professor search"
-                      placeholder={
-                        hasSchool
-                          ? "Search professor"
-                          : "Select a school first"
-                      }
-                      value={row.professorQuery}
-                      disabled={!hasSchool}
-                      onChange={(event) =>
-                        updateRow(row.id, {
-                          professorQuery: event.target.value,
-                          professorId: "",
-                          newProfessor: "",
-                        })
-                      }
-                      autoComplete="off"
-                    />
-
-                    {row.professorQuery.trim() &&
-                      professorMatches.length > 0 && (
-                        <div
-                          className="overflow-hidden rounded-md border"
-                          role="listbox"
-                          aria-label="Professor suggestions"
-                        >
-                          <p className="bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground">
-                            Did you mean?
-                          </p>
-                          {professorMatches.map(({ item: professor }) => (
-                            <button
-                              key={professor.id}
-                              type="button"
-                              role="option"
-                              aria-selected={professor.id === row.professorId}
-                              className="w-full border-t px-3 py-2 text-left text-sm hover:bg-muted"
-                              onClick={() =>
-                                selectProfessor(row.id, professor)
-                              }
-                            >
-                              <span className="block font-medium">
-                                {professor.name}
-                              </span>
-                              {professor.department && (
-                                <span className="block text-xs text-muted-foreground">
-                                  {professor.department}
-                                </span>
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
-                    {canOfferProfessorCreation && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="w-full whitespace-normal"
-                        onClick={() =>
-                          setPendingCreate({
-                            kind: "professor",
-                            name: row.professorQuery.trim(),
-                            rowId: row.id,
-                          })
-                        }
-                      >
-                        Create new &quot;{row.professorQuery.trim()}&quot;
-                      </Button>
-                    )}
-
-                    {row.professorId === "__new" && (
-                      <p className="text-xs text-muted-foreground">
-                        New professor at {newSchool || schoolQuery}:{" "}
-                        <span className="font-medium text-foreground">
-                          {row.newProfessor}
-                        </span>
-                      </p>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+            {rows.map((row) => (
+              <CourseRowEditor
+                key={row.id}
+                row={row}
+                hasSchool={hasSchool}
+                selectedSchoolId={selectedSchoolId}
+                schoolLabel={newSchool || schoolQuery}
+                updateRow={updateRow}
+                selectProfessor={selectProfessor}
+                requestCreateProfessor={(name) =>
+                  setPendingCreate({
+                    kind: "professor",
+                    name,
+                    rowId: row.id,
+                  })
+                }
+              />
+            ))}
 
             <div className="flex justify-end">
               <Button
@@ -576,5 +457,177 @@ export default function OnboardingPage() {
         </DialogContent>
       </Dialog>
     </ProtectedRoute>
+  );
+}
+
+interface CourseRowEditorProps {
+  row: CourseRow;
+  hasSchool: boolean;
+  selectedSchoolId: string;
+  schoolLabel: string;
+  updateRow: (id: string, patch: Partial<CourseRow>) => void;
+  selectProfessor: (rowId: string, professor: Professor) => void;
+  requestCreateProfessor: (name: string) => void;
+}
+
+function CourseRowEditor({
+  row,
+  hasSchool,
+  selectedSchoolId,
+  schoolLabel,
+  updateRow,
+  selectProfessor,
+  requestCreateProfessor,
+}: CourseRowEditorProps) {
+  const courseSearchQuery = row.code.trim() || row.name.trim();
+  const courseSearch = useEntitySearch<Course>(
+    selectedSchoolId ? `/api/schools/${selectedSchoolId}/courses` : "/api/courses",
+    courseSearchQuery,
+    undefined,
+    hasSchool && Boolean(selectedSchoolId) && Boolean(courseSearchQuery),
+  );
+  const professorSearch = useEntitySearch<Professor>(
+    selectedSchoolId
+      ? `/api/schools/${selectedSchoolId}/professors`
+      : "/api/professors",
+    row.professorQuery,
+    undefined,
+    hasSchool && Boolean(selectedSchoolId),
+  );
+  const professorMatches = professorSearch.data.matches;
+  const canOfferProfessorCreation =
+    hasSchool &&
+    row.professorQuery.trim().length > 0 &&
+    (selectedSchoolId ? professorSearch.data.canCreate : true) &&
+    row.professorId !== "__new";
+
+  return (
+    <div className="grid gap-3 rounded-md border p-3 md:grid-cols-[8rem_1fr_16rem]">
+      <Input
+        aria-label="Course code"
+        placeholder="CSE 101"
+        value={row.code}
+        onChange={(event) =>
+          updateRow(row.id, { code: event.target.value, courseId: "" })
+        }
+      />
+      <div className="space-y-2">
+        <Input
+          aria-label="Course name"
+          placeholder="Design and Analysis of Algorithms"
+          value={row.name}
+          onChange={(event) =>
+            updateRow(row.id, { name: event.target.value, courseId: "" })
+          }
+        />
+        {courseSearch.data.matches.length > 0 && (
+          <div
+            className="overflow-hidden rounded-md border"
+            role="listbox"
+            aria-label="Course suggestions"
+          >
+            <p className="bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground">
+              Did you mean?
+            </p>
+            {courseSearch.data.matches.map(({ item: course, strong }) => (
+              <button
+                key={course.id}
+                type="button"
+                role="option"
+                aria-selected={course.id === row.courseId}
+                className="flex w-full items-center justify-between border-t px-3 py-2 text-left text-sm hover:bg-muted"
+                onClick={() =>
+                  updateRow(row.id, {
+                    courseId: course.id,
+                    code: course.code,
+                    name: course.name,
+                    professorId: course.professorId,
+                    professorQuery: "Existing course professor",
+                    newProfessor: "",
+                    newProfessorConfirmed: false,
+                  })
+                }
+              >
+                <span>
+                  <span className="block font-medium">{course.code}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {course.name}
+                  </span>
+                </span>
+                {strong && (
+                  <span className="text-xs text-muted-foreground">Match</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="space-y-2">
+        <Input
+          aria-label="Professor search"
+          placeholder={hasSchool ? "Search professor" : "Select a school first"}
+          value={row.professorQuery}
+          disabled={!hasSchool}
+          onChange={(event) =>
+            updateRow(row.id, {
+              professorQuery: event.target.value,
+              professorId: "",
+              newProfessor: "",
+              newProfessorConfirmed: false,
+            })
+          }
+          autoComplete="off"
+        />
+
+        {row.professorQuery.trim() && professorMatches.length > 0 && (
+          <div
+            className="overflow-hidden rounded-md border"
+            role="listbox"
+            aria-label="Professor suggestions"
+          >
+            <p className="bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground">
+              Did you mean?
+            </p>
+            {professorMatches.map(({ item: professor }) => (
+              <button
+                key={professor.id}
+                type="button"
+                role="option"
+                aria-selected={professor.id === row.professorId}
+                className="w-full border-t px-3 py-2 text-left text-sm hover:bg-muted"
+                onClick={() => selectProfessor(row.id, professor)}
+              >
+                <span className="block font-medium">{professor.name}</span>
+                {professor.department && (
+                  <span className="block text-xs text-muted-foreground">
+                    {professor.department}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {canOfferProfessorCreation && (
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full whitespace-normal"
+            onClick={() => requestCreateProfessor(row.professorQuery.trim())}
+          >
+            Create new &quot;{row.professorQuery.trim()}&quot;
+          </Button>
+        )}
+
+        {row.professorId === "__new" && (
+          <p className="text-xs text-muted-foreground">
+            New professor at {schoolLabel}:{" "}
+            <span className="font-medium text-foreground">
+              {row.newProfessor}
+            </span>
+          </p>
+        )}
+      </div>
+    </div>
   );
 }

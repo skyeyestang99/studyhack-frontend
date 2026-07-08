@@ -4,12 +4,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import OnboardingPage from "@/app/onboarding/page";
 
 interface CourseInput {
+  id?: string;
   code: string;
   name: string;
+  confirmed?: boolean;
+  professor?: unknown;
 }
 
 interface OnboardingPayload {
-  school: { id?: string; name?: string };
+  school: { id?: string; name?: string; confirmed?: boolean };
   semester: string;
   courses: CourseInput[];
 }
@@ -78,6 +81,18 @@ function createMockApi(existingCourses: MockCourse[] = []) {
   );
   const enrollments = new Set<string>();
 
+  apiGet.mockImplementation(
+    async (endpoint: string, options?: { params?: { q?: string } }) => {
+      if (endpoint === "/api/schools" && options?.params?.q) {
+        return { matches: [], canCreate: true, threshold: 0.65 };
+      }
+      if (endpoint === "/api/schools") {
+        return [];
+      }
+      return { matches: [], canCreate: true, threshold: 0.65 };
+    },
+  );
+
   apiPost.mockImplementation(
     async (endpoint: string, payload: OnboardingPayload) => {
       expect(endpoint).toBe("/api/onboarding");
@@ -117,7 +132,12 @@ async function completeOnboarding(courses: CourseInput[]) {
   fireEvent.change(schoolSearch, {
     target: { value: "Northbridge University" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "Create new school" }));
+  fireEvent.click(
+    await screen.findByRole("button", {
+      name: 'Create new "Northbridge University"',
+    }),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Confirm create" }));
 
   fireEvent.change(screen.getByPlaceholderText("Type your major, e.g. Computer Science"), {
     target: { value: "Computer Science" },
@@ -137,7 +157,7 @@ async function completeOnboarding(courses: CourseInput[]) {
   });
 
   fireEvent.click(screen.getByRole("button", { name: "Save and continue" }));
-  await screen.findByText(/Setup saved for this session/);
+  await screen.findByText(/Setup saved\. Continue/);
 }
 
 describe("onboarding and enrollment", () => {
@@ -157,11 +177,23 @@ describe("onboarding and enrollment", () => {
     ]);
 
     expect(apiPost).toHaveBeenCalledWith("/api/onboarding", {
-      school: { name: "Northbridge University" },
+      school: { name: "Northbridge University", confirmed: true },
       semester: "Spring 2026",
       courses: [
-        { code: "CSE 101", name: "Design and Analysis of Algorithms" },
-        { code: "MATH 20C", name: "Calculus and Analytic Geometry" },
+        {
+          id: undefined,
+          code: "CSE 101",
+          name: "Design and Analysis of Algorithms",
+          professor: undefined,
+          confirmed: true,
+        },
+        {
+          id: undefined,
+          code: "MATH 20C",
+          name: "Calculus and Analytic Geometry",
+          professor: undefined,
+          confirmed: true,
+        },
       ],
     });
     expect(mockApi.courses).toHaveLength(2);
