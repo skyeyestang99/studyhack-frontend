@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { UsersRound } from "lucide-react";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEntities } from "@/hooks/useEntities";
@@ -31,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 const NEW_SCHOOL_ID = "__new";
+const DIRECT_COUNT_THRESHOLD = 21;
 
 interface CourseRow {
   id: string;
@@ -59,6 +61,32 @@ const emptyCourseRow = (id: string): CourseRow => ({
   newProfessor: "",
   newProfessorConfirmed: false,
 });
+
+function courseCommunityLabel(count?: number) {
+  const total = typeof count === "number" && Number.isFinite(count) ? count : 0;
+  if (total >= DIRECT_COUNT_THRESHOLD) {
+    return {
+      label: `${total.toLocaleString()} students learning here`,
+      detail: "A well-established shared course hub.",
+    };
+  }
+  if (total > 10) {
+    return {
+      label: "Active shared course hub",
+      detail: "Good match for shared materials and study history.",
+    };
+  }
+  if (total > 0) {
+    return {
+      label: "Matched course hub",
+      detail: "Use this to keep materials with the canonical course.",
+    };
+  }
+  return {
+    label: "Ready for course materials",
+    detail: "A clean hub for this class and future study work.",
+  };
+}
 
 export default function OnboardingPage() {
   const { user } = useAuth();
@@ -479,7 +507,13 @@ function CourseRowEditor({
   selectProfessor,
   requestCreateProfessor,
 }: CourseRowEditorProps) {
+  const [coursePickerOpen, setCoursePickerOpen] = useState(false);
   const courseSearchQuery = row.code.trim() || row.name.trim();
+  const schoolCourses = useEntities<Course>(
+    selectedSchoolId ? `/api/schools/${selectedSchoolId}/courses` : "/api/courses",
+    undefined,
+    hasSchool && Boolean(selectedSchoolId),
+  );
   const courseSearch = useEntitySearch<Course>(
     selectedSchoolId ? `/api/schools/${selectedSchoolId}/courses` : "/api/courses",
     courseSearchQuery,
@@ -495,11 +529,43 @@ function CourseRowEditor({
     hasSchool && Boolean(selectedSchoolId),
   );
   const professorMatches = professorSearch.data.matches;
+  const visibleCourseSuggestions = courseSearchQuery
+    ? courseSearch.data.matches.map(({ item, strong }) => ({ course: item, strong }))
+    : schoolCourses.data.slice(0, 8).map((course) => ({ course, strong: false }));
+  const canOfferCourseCreation =
+    hasSchool &&
+    Boolean(selectedSchoolId) &&
+    Boolean(courseSearchQuery) &&
+    row.courseId !== "__new" &&
+    courseSearch.data.canCreate &&
+    !courseSearch.isLoading;
   const canOfferProfessorCreation =
     hasSchool &&
     row.professorQuery.trim().length > 0 &&
     (selectedSchoolId ? professorSearch.data.canCreate : true) &&
     row.professorId !== "__new";
+  const selectCourse = (course: Course) => {
+    updateRow(row.id, {
+      courseId: course.id,
+      code: course.code,
+      name: course.name,
+      professorId: course.professorId,
+      professorQuery: "",
+      newProfessor: "",
+      newProfessorConfirmed: false,
+    });
+    setCoursePickerOpen(false);
+  };
+  const keepAsNewCourse = () => {
+    updateRow(row.id, {
+      courseId: "",
+      professorId: "",
+      professorQuery: "",
+      newProfessor: "",
+      newProfessorConfirmed: false,
+    });
+    setCoursePickerOpen(false);
+  };
 
   return (
     <div className="grid gap-3 rounded-md border p-3 md:grid-cols-[8rem_1fr_16rem]">
@@ -507,6 +573,8 @@ function CourseRowEditor({
         aria-label="Course code"
         placeholder="CSE 101"
         value={row.code}
+        disabled={!hasSchool}
+        onFocus={() => setCoursePickerOpen(true)}
         onChange={(event) =>
           updateRow(row.id, { code: event.target.value, courseId: "" })
         }
@@ -514,53 +582,106 @@ function CourseRowEditor({
       <div className="space-y-2">
         <Input
           aria-label="Course name"
-          placeholder="Design and Analysis of Algorithms"
+          placeholder={hasSchool ? "Design and Analysis of Algorithms" : "Select a school first"}
           value={row.name}
+          disabled={!hasSchool}
+          onFocus={() => setCoursePickerOpen(true)}
           onChange={(event) =>
             updateRow(row.id, { name: event.target.value, courseId: "" })
           }
         />
-        {courseSearch.data.matches.length > 0 && (
+        {coursePickerOpen && hasSchool && selectedSchoolId && (
           <div
             className="overflow-hidden rounded-md border"
             role="listbox"
             aria-label="Course suggestions"
           >
             <p className="bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground">
-              Did you mean?
+              {courseSearchQuery ? "Best existing matches" : "Existing courses at this school"}
             </p>
-            {courseSearch.data.matches.map(({ item: course, strong }) => (
+            {visibleCourseSuggestions.map(({ course, strong }) => {
+              const community = courseCommunityLabel(course.enrollmentCount);
+              return (
+                <button
+                  key={course.id}
+                  type="button"
+                  role="option"
+                  aria-selected={course.id === row.courseId}
+                  className="flex w-full items-start justify-between gap-3 border-t px-3 py-3 text-left text-sm hover:bg-muted"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => selectCourse(course)}
+                >
+                  <span className="min-w-0">
+                    <span className="block font-medium">{course.code}</span>
+                    <span className="block text-xs text-muted-foreground">
+                      {course.name}
+                    </span>
+                    <span className="mt-2 flex items-start gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-xs text-emerald-950">
+                      <UsersRound
+                        className="mt-0.5 size-3.5 shrink-0 text-emerald-700"
+                        aria-hidden="true"
+                      />
+                      <span className="min-w-0">
+                        <span className="block font-medium">
+                          {community.label}
+                        </span>
+                        <span className="block text-emerald-800">
+                          {community.detail}
+                        </span>
+                      </span>
+                    </span>
+                  </span>
+                  {strong && (
+                    <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">
+                      Match
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+            {visibleCourseSuggestions.length === 0 &&
+              !courseSearch.isLoading &&
+              !schoolCourses.isLoading && (
+              <div className="border-t px-3 py-3 text-sm">
+                <p className="text-muted-foreground">
+                  No existing course match yet.
+                </p>
+              </div>
+            )}
+            {canOfferCourseCreation && (
               <button
-                key={course.id}
                 type="button"
-                role="option"
-                aria-selected={course.id === row.courseId}
-                className="flex w-full items-center justify-between border-t px-3 py-2 text-left text-sm hover:bg-muted"
-                onClick={() =>
-                  updateRow(row.id, {
-                    courseId: course.id,
-                    code: course.code,
-                    name: course.name,
-                    professorId: course.professorId,
-                    professorQuery: "Existing course professor",
-                    newProfessor: "",
-                    newProfessorConfirmed: false,
-                  })
-                }
+                className="flex w-full items-start gap-2 border-t px-3 py-3 text-left text-sm hover:bg-muted"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={keepAsNewCourse}
               >
+                <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  +
+                </span>
                 <span>
-                  <span className="block font-medium">{course.code}</span>
+                  <span className="block font-medium">
+                    Create a new course from this entry
+                  </span>
                   <span className="block text-xs text-muted-foreground">
-                    {course.name}
+                    Save it as a clean hub for this class.
                   </span>
                 </span>
-                {strong && (
-                  <span className="text-xs text-muted-foreground">Match</span>
-                )}
               </button>
-            ))}
+            )}
           </div>
         )}
+        {hasSchool &&
+          courseSearchQuery &&
+          courseSearch.debouncedQuery &&
+          !courseSearch.isLoading &&
+          courseSearch.data.matches.length === 0 && (
+            <div className="rounded-md border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">
+                Ready for a new course hub.
+              </span>{" "}
+              Save this entry if it should become the canonical course.
+            </div>
+          )}
       </div>
       <div className="space-y-2">
         <Input
