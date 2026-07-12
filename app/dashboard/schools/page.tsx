@@ -65,6 +65,7 @@ export default function SchoolsPage() {
         await apiClient.post("/api/schools", {
           name: formData.name,
           location: formData.location || undefined,
+          confirmed: true,
         });
         toast.success("School created successfully");
       } else {
