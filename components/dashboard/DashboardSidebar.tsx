@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEntities } from "@/hooks/useEntities";
-import type { Course } from "@/types/api";
+import type { Course, Professor, School } from "@/types/api";
 
 interface SidebarLink {
   href: string;
@@ -32,6 +32,18 @@ const sidebarLinks: SidebarLink[] = [
 export function DashboardSidebar() {
   const pathname = usePathname();
   const { data: courses } = useEntities<Course>("/api/courses");
+  const { data: schools } = useEntities<School>("/api/schools");
+  const { data: professors } = useEntities<Professor>("/api/professors");
+
+  // Disambiguate look-alike codes (e.g. two "CSE 101" at different schools) by
+  // showing the school and professor. Falls back to the course name.
+  const courseSubtitle = (course: Course) =>
+    [
+      schools.find((s) => s.id === course.schoolId)?.name,
+      professors.find((p) => p.id === course.professorId)?.name,
+    ]
+      .filter(Boolean)
+      .join(" · ") || course.name;
 
   const isActive = (href: string) => {
     if (href === "/dashboard") {
@@ -75,14 +87,17 @@ export function DashboardSidebar() {
                         key={course.id}
                         href={href}
                         className={cn(
-                          "block truncate rounded-md px-3 py-1.5 text-sm transition-colors",
+                          "block rounded-md px-3 py-1.5 text-sm transition-colors",
                           courseActive
                             ? "bg-muted font-medium text-foreground"
                             : "text-muted-foreground hover:bg-muted hover:text-foreground",
                         )}
-                        title={`${course.code} — ${course.name}`}
+                        title={`${course.code} — ${course.name} (${courseSubtitle(course)})`}
                       >
-                        {course.code}
+                        <span className="block truncate">{course.code}</span>
+                        <span className="block truncate text-xs text-muted-foreground/80">
+                          {courseSubtitle(course)}
+                        </span>
                       </Link>
                     );
                   })}
