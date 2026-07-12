@@ -64,6 +64,15 @@ const { apiGet, apiPost } = vi.hoisted(() => {
     schoolId: "school-ucsd",
     createdAt: "2026-01-06T08:00:00.000Z",
   };
+  const course = {
+    id: "course-cse101",
+    name: "Design and Analysis of Algorithms",
+    code: "CSE 101",
+    schoolId: "school-ucsd",
+    professorId: "prof-smith",
+    enrollmentCount: 12,
+    createdAt: "2026-01-08T08:00:00.000Z",
+  };
   return {
   apiGet: vi.fn((endpoint: string, config?: { params?: Record<string, string> }) => {
     const q = config?.params?.q?.toLowerCase();
@@ -95,13 +104,16 @@ const { apiGet, apiPost } = vi.hoisted(() => {
     }
     if (endpoint === "/api/courses" || endpoint === "/api/schools/school-ucsd/courses") {
       if (q) {
+        const matched = q === "cse 101" || q === "cse101";
         return Promise.resolve({
-          matches: [],
-          canCreate: true,
+          matches: matched
+            ? [{ item: course, score: 1, strong: true }]
+            : [],
+          canCreate: !matched,
           threshold: 0.65,
         });
       }
-      return Promise.resolve([]);
+      return Promise.resolve([course]);
     }
     return Promise.resolve([]);
   }),
@@ -230,6 +242,45 @@ describe("student workspace flows", () => {
 
     expect(
       screen.getByText(/New professor at UC San Diego/),
+    ).toBeInTheDocument();
+  });
+
+  it("selects an existing course without locking or polluting the professor field", async () => {
+    render(<OnboardingPage />);
+
+    const schoolSearch = await screen.findByPlaceholderText(
+      "Search school or type a new one",
+    );
+    fireEvent.change(schoolSearch, { target: { value: "ucsd" } });
+    fireEvent.click(await screen.findByRole("option", { name: /UC San Diego/ }));
+
+    const courseCode = screen.getByLabelText("Course code");
+    fireEvent.focus(courseCode);
+    fireEvent.change(courseCode, { target: { value: "CSE 101" } });
+
+    fireEvent.click(
+      await screen.findByRole("option", {
+        name: /CSE 101/,
+      }),
+    );
+
+    expect(
+      screen.getByPlaceholderText("Search professor"),
+    ).toBeEnabled();
+    expect(
+      screen.queryByRole("button", {
+        name: /Create new "Existing course professor"/,
+      }),
+    ).not.toBeInTheDocument();
+
+    const professorSearch = screen.getByLabelText("Professor search");
+    fireEvent.change(professorSearch, {
+      target: { value: "Taylor Northbridge" },
+    });
+    expect(
+      await screen.findByRole("button", {
+        name: 'Create new "Taylor Northbridge"',
+      }),
     ).toBeInTheDocument();
   });
 

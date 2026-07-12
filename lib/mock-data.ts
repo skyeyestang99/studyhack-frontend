@@ -68,6 +68,7 @@ export const mockCourses: Course[] = [
     code: "CSE 101",
     schoolId: "school-ucsd",
     professorId: "prof-smith",
+    enrollmentCount: 28,
     createdAt: "2026-01-08T08:00:00.000Z",
   },
   {
@@ -76,6 +77,7 @@ export const mockCourses: Course[] = [
     code: "MATH 20D",
     schoolId: "school-ucsd",
     professorId: "prof-lee",
+    enrollmentCount: 3,
     createdAt: "2026-01-08T08:00:00.000Z",
   },
 ];
