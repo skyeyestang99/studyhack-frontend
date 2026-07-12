@@ -12,7 +12,7 @@ export default function CoursesLayout({
       <OnboardingGate>
         <div className="flex h-[calc(100vh-4rem)] flex-col md:flex-row">
           <DashboardSidebar />
-          <main className="flex-1 overflow-auto">{children}</main>
+          <main className="min-w-0 flex-1 overflow-auto">{children}</main>
         </div>
       </OnboardingGate>
     </ProtectedRoute>

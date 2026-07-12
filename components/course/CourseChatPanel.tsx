@@ -517,7 +517,7 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
               : "grid gap-4 lg:grid-cols-[18rem_1fr]"
           }
         >
-          <div className={compact ? "order-2 lg:order-1" : ""}>
+          <div className={compact ? "order-2 min-w-0 lg:order-1" : "min-w-0"}>
             <div className="overflow-hidden rounded-xl border bg-neutral-50/60">
               <div className="flex items-center justify-between border-b bg-white px-3 py-2">
                 <h3 className="text-sm font-semibold">Conversations</h3>
@@ -578,7 +578,7 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
             </div>
           </div>
 
-          <div className="flex min-h-[28rem] flex-col overflow-hidden rounded-xl border bg-white">
+          <div className="flex min-h-[28rem] min-w-0 flex-col overflow-hidden rounded-xl border bg-white">
             <input
               ref={imageInputRef}
               type="file"
