@@ -201,7 +201,7 @@ export interface StudyMaterialResponse {
   courseName: string;
   courseId: string;
   materialType: "HOMEWORK" | "PPT" | "EXAM" | "NOTES";
-  status: "VALIDATING" | "READY" | "REJECTED" | "QUARANTINED";
+  status: "VALIDATING" | "READY" | "REJECTED" | "QUARANTINED" | "FAILED";
   previewUrl?: string | null;
   downloadUrl?: string | null;
   contentType?: string | null;
