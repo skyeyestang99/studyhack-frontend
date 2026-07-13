@@ -2,10 +2,13 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEntities } from "@/hooks/useEntities";
+import { apiClient } from "@/lib/api-client";
 import { DashboardSkeleton } from "@/components/dashboard/DashboardSkeleton";
 import { ErrorState } from "@/components/dashboard/ErrorState";
+import { LeaveCourseDialog } from "@/components/dashboard/LeaveCourseDialog";
 import {
   Card,
   CardHeader,
@@ -28,6 +31,8 @@ import { ExamReminderStrip } from "@/components/dashboard/ExamReminderStrip";
 export default function DashboardPage() {
   const { user } = useAuth();
   const [selectedSchoolId, setSelectedSchoolId] = useState<string>("all");
+  const [courseToLeave, setCourseToLeave] = useState<Course | null>(null);
+  const [isLeaving, setIsLeaving] = useState(false);
   const schools = useEntities<School>("/api/schools");
   const professors = useEntities<Professor>("/api/professors");
   const courses = useEntities<Course>("/api/courses");
@@ -58,6 +63,31 @@ export default function DashboardPage() {
     if (selectedSchoolId === "all") return courses.data;
     return courses.data.filter((course) => course.schoolId === selectedSchoolId);
   }, [courses.data, selectedSchoolId]);
+
+  const handleLeaveCourse = async () => {
+    if (!courseToLeave) return;
+
+    setIsLeaving(true);
+    try {
+      await apiClient.delete<void>("/api/enrollments", {
+        params: { courseId: courseToLeave.id },
+      });
+      toast.success(`Left ${courseToLeave.code}`);
+      setCourseToLeave(null);
+      courses.refresh();
+    } catch (err) {
+      const message =
+        typeof err === "object" &&
+        err !== null &&
+        "message" in err &&
+        typeof err.message === "string"
+          ? err.message
+          : "Unable to leave the course";
+      toast.error(message);
+    } finally {
+      setIsLeaving(false);
+    }
+  };
 
   if (isLoading) {
     return <DashboardSkeleton />;
@@ -141,7 +171,11 @@ export default function DashboardPage() {
             <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
               <BookOpen className="h-10 w-10 text-muted-foreground" />
               <div>
-                <p className="font-medium">No courses match this school.</p>
+                <p className="font-medium">
+                  {courses.data.length === 0
+                    ? "You are not enrolled in any courses."
+                    : "No courses match this school."}
+                </p>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Choose another school or show all of your courses.
                 </p>
@@ -200,9 +234,19 @@ export default function DashboardPage() {
                         Course chat
                       </span>
                     </div>
-                    <Button asChild className="w-full">
-                      <Link href={`/courses/${course.id}`}>Open Course</Link>
-                    </Button>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Button asChild className="flex-1">
+                        <Link href={`/courses/${course.id}`}>Open Course</Link>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => setCourseToLeave(course)}
+                      >
+                        Leave course
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               );
@@ -210,6 +254,16 @@ export default function DashboardPage() {
           </div>
         )}
       </section>
+
+      <LeaveCourseDialog
+        open={courseToLeave !== null}
+        courseName={courseToLeave?.name ?? ""}
+        isLeaving={isLeaving}
+        onConfirm={handleLeaveCourse}
+        onCancel={() => {
+          if (!isLeaving) setCourseToLeave(null);
+        }}
+      />
     </div>
   );
 }

@@ -13,7 +13,8 @@ interface UseEntitiesReturn<T> {
 
 export function useEntities<T>(
   endpoint: string,
-  params?: Record<string, string>
+  params?: Record<string, string>,
+  enabled = true,
 ): UseEntitiesReturn<T> {
   const [data, setData] = useState<T[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -22,6 +23,12 @@ export function useEntities<T>(
   const serializedParams = params ? JSON.stringify(params) : null;
 
   const fetchData = useCallback(async () => {
+    if (!enabled) {
+      setData([]);
+      setIsLoading(false);
+      setError(null);
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {
@@ -39,7 +46,7 @@ export function useEntities<T>(
     } finally {
       setIsLoading(false);
     }
-  }, [endpoint, serializedParams]);
+  }, [enabled, endpoint, serializedParams]);
 
   useEffect(() => {
     fetchData();

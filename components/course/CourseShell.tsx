@@ -88,7 +88,7 @@ export function CourseShell({
             })}
           </nav>
         </aside>
-        <main className="flex-1 overflow-auto px-4 py-5 md:px-8 md:py-8">
+        <main className="min-w-0 flex-1 overflow-auto px-4 py-5 md:px-8 md:py-8">
           {children}
         </main>
       </div>

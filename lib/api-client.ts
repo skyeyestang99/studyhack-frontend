@@ -166,15 +166,6 @@ async function request<T>(
       } as ApiError;
     }
 
-    // Network error
-    if (method === "GET") {
-      const mockResponse = getMockResponse<T>(
-        mockPath,
-        env.mockScenario ?? "default",
-      );
-      if (mockResponse !== undefined) return mockResponse;
-    }
-
     throw {
       timestamp: new Date().toISOString(),
       status: 0,

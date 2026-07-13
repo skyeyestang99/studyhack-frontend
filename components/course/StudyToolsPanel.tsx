@@ -115,7 +115,7 @@ export function StudyToolsPanel({ course }: { course: Course }) {
 
   const stop = () => abortRef.current?.abort();
 
-  const openSource = async (materialId: string) => {
+  const openSource = async (materialId: string, page?: number) => {
     try {
       const token = await getAuthToken();
       const res = await fetch(`${env.apiUrl}/api/materials/${materialId}/preview`, {
@@ -123,8 +123,9 @@ export function StudyToolsPanel({ course }: { course: Course }) {
       });
       if (!res.ok) throw new Error();
       const data = (await res.json()) as { previewUrl?: string };
-      if (data.previewUrl) window.open(data.previewUrl, "_blank", "noopener");
-      else throw new Error();
+      if (!data.previewUrl) throw new Error();
+      const url = page && page > 1 ? `${data.previewUrl}#page=${page}` : data.previewUrl;
+      window.open(url, "_blank", "noopener");
     } catch {
       toast.error("Couldn't open that source");
     }
@@ -209,11 +210,12 @@ export function StudyToolsPanel({ course }: { course: Course }) {
                       className="flex items-center gap-2 text-xs text-muted-foreground"
                     >
                       <button
-                        onClick={() => openSource(c.materialId)}
+                        onClick={() => openSource(c.materialId, c.page)}
                         className="truncate text-left text-blue-700 hover:underline"
                         title="Open source material"
                       >
                         {c.fileName}
+                        {c.page ? ` · p.${c.page}` : ""}
                       </button>
                       <span className="shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-600">
                         {Math.round(c.score * 100)}% match

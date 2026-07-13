@@ -14,6 +14,7 @@ export interface ApiError {
   message: string;
   path: string;
   errors?: ValidationError[];
+  candidates?: EntitySearchResponse<School | Professor | Course>;
 }
 
 export interface ValidationError {
@@ -65,6 +66,8 @@ export interface UserProfile {
 export interface School {
   id: string;
   name: string;
+  shortName?: string | null;
+  aliases?: string[];
   location: string | null;
   createdAt: string;
 }
@@ -72,6 +75,8 @@ export interface School {
 export interface Professor {
   id: string;
   name: string;
+  shortName?: string | null;
+  aliases?: string[];
   department: string | null;
   schoolId: string;
   createdAt: string;
@@ -83,19 +88,55 @@ export interface Course {
   code: string;
   schoolId: string;
   professorId: string;
+  enrollmentCount?: number;
   createdAt: string;
+}
+
+export interface EntitySearchMatch<T> {
+  item: T;
+  score: number;
+  strong: boolean;
+}
+
+export interface EntitySearchResponse<T> {
+  matches: EntitySearchMatch<T>[];
+  canCreate: boolean;
+  threshold: number;
 }
 
 // Request types
 export interface CreateSchoolRequest {
   name: string;
+  shortName?: string;
+  aliases?: string[];
   location?: string;
+  confirmed?: boolean;
 }
 
 export interface CreateProfessorRequest {
   name: string;
+  shortName?: string;
+  aliases?: string[];
   department?: string;
   schoolId: string;
+  confirmed?: boolean;
+}
+
+export interface OnboardingRequest {
+  school: { id: string } | { name: string; confirmed?: boolean };
+  semester: string;
+  courses: Array<{
+    id?: string;
+    code: string;
+    name: string;
+    confirmed?: boolean;
+    professor?: { id: string } | { name: string; confirmed?: boolean };
+  }>;
+}
+
+export interface OnboardingResponse {
+  schoolId: string;
+  enrolled: Array<{ courseId: string; code: string; name: string }>;
 }
 
 export interface CreateCourseRequest {
@@ -103,6 +144,7 @@ export interface CreateCourseRequest {
   code: string;
   schoolId: string;
   professorId: string;
+  confirmed?: boolean;
 }
 
 // Homework Q&A types
@@ -159,7 +201,7 @@ export interface StudyMaterialResponse {
   courseName: string;
   courseId: string;
   materialType: "HOMEWORK" | "PPT" | "EXAM" | "NOTES";
-  status: "VALIDATING" | "READY" | "REJECTED" | "QUARANTINED";
+  status: "VALIDATING" | "READY" | "REJECTED" | "QUARANTINED" | "FAILED";
   previewUrl?: string | null;
   downloadUrl?: string | null;
   contentType?: string | null;

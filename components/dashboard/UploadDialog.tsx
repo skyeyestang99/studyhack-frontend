@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { CheckCircle2, UploadCloud } from "lucide-react";
 import {
   Dialog,
@@ -66,6 +67,7 @@ export function UploadDialog({
   const [dragActive, setDragActive] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [consent, setConsent] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -83,12 +85,14 @@ export function UploadDialog({
     }
   }, [open, lockedCourseId]);
 
-  const canSubmit = files.length > 0 && courseId && materialType && !uploading;
+  const canSubmit =
+    files.length > 0 && courseId && materialType && consent && !uploading;
 
   const resetForm = () => {
     setFiles([]);
     setCourseId(lockedCourseId ?? "");
     setMaterialType("");
+    setConsent(false);
     setError(null);
     setSuccess(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -167,7 +171,7 @@ export function UploadDialog({
   };
 
   const handleSubmit = async () => {
-    if (!files.length || !courseId || !materialType) return;
+    if (!files.length || !courseId || !materialType || !consent) return;
     setUploading(true);
     setError(null);
     setSuccess(false);
@@ -304,6 +308,32 @@ export function UploadDialog({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="flex items-start gap-2 rounded-md border bg-muted/20 p-3">
+            <input
+              id="upload-consent"
+              type="checkbox"
+              checked={consent}
+              onChange={(e) => setConsent(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0"
+            />
+            <Label
+              htmlFor="upload-consent"
+              className="text-xs font-normal leading-5 text-muted-foreground"
+            >
+              I have the right to share this material and understand it will be
+              added to this course&apos;s shared knowledge base and used to answer
+              questions for classmates enrolled in the same course. See our{" "}
+              <Link
+                href="/terms"
+                target="_blank"
+                className="underline hover:text-foreground"
+              >
+                Terms &amp; Privacy
+              </Link>
+              .
+            </Label>
           </div>
 
           {error && (

@@ -23,20 +23,25 @@ interface MaterialListProps {
   onPreview?: (material: StudyMaterialResponse) => void;
 }
 
-const statusConfig: Record<
-  StudyMaterialResponse["status"],
-  { label: string; className: string }
-> = {
+const statusConfig: Record<string, { label: string; className: string }> = {
   READY: { label: "Ready", className: "bg-green-100 text-green-800" },
   VALIDATING: {
     label: "Validating",
     className: "bg-yellow-100 text-yellow-800",
   },
+  FAILED: { label: "Failed", className: "bg-red-100 text-red-800" },
   QUARANTINED: {
     label: "Quarantined",
     className: "bg-orange-100 text-orange-800",
   },
   REJECTED: { label: "Rejected", className: "bg-red-100 text-red-800" },
+};
+
+// Never let an unrecognized backend status (e.g. a new lifecycle state) throw
+// and blank the whole page.
+const FALLBACK_STATUS = {
+  label: "Unknown",
+  className: "bg-neutral-100 text-neutral-700",
 };
 
 const typeLabels: Record<StudyMaterialResponse["materialType"], string> = {
@@ -88,25 +93,24 @@ export function MaterialList({
       </TableHeader>
       <TableBody>
         {materials.map((m) => {
-          const cfg = statusConfig[m.status];
+          const cfg = statusConfig[m.status] ?? FALLBACK_STATUS;
           const canPreview = m.status === "READY" && Boolean(onPreview);
+          const hasDetail =
+            (m.status === "REJECTED" && Boolean(m.rejectionReason)) ||
+            m.status === "FAILED";
           const handleRowClick = () => {
             if (canPreview) {
               onPreview?.(m);
               return;
             }
-            if (m.status === "REJECTED" && m.rejectionReason) {
+            if (hasDetail) {
               setExpandedId(expandedId === m.id ? null : m.id);
             }
           };
           return (
             <Fragment key={m.id}>
               <TableRow
-                className={cn(
-                  canPreview || (m.status === "REJECTED" && m.rejectionReason)
-                    ? "cursor-pointer"
-                    : "",
-                )}
+                className={cn(canPreview || hasDetail ? "cursor-pointer" : "")}
                 tabIndex={canPreview ? 0 : undefined}
                 onClick={handleRowClick}
                 onKeyDown={(e) => {
@@ -179,13 +183,15 @@ export function MaterialList({
                   </div>
                 </TableCell>
               </TableRow>
-              {expandedId === m.id && m.rejectionReason && (
+              {expandedId === m.id && (m.status === "FAILED" || m.rejectionReason) && (
                 <TableRow key={`${m.id}-reason`}>
                   <TableCell
                     colSpan={6}
                     className="bg-red-50 text-sm text-red-700"
                   >
-                    Rejection reason: {m.rejectionReason}
+                    {m.status === "FAILED"
+                      ? "We couldn't process this file, so it isn't available to the tutor. Delete it and re-upload a clearer PDF or a supported format (PDF, DOCX, PPTX, TXT, MD)."
+                      : `Rejection reason: ${m.rejectionReason}`}
                   </TableCell>
                 </TableRow>
               )}

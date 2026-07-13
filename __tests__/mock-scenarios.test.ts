@@ -23,6 +23,7 @@ import type { Course } from "@/types/api";
 
 describe("mock API scenarios", () => {
   beforeEach(() => {
+    mockEnv.useMocks = true;
     mockEnv.mockScenario = "default";
     mockEnv.mockDelayMs = 0;
     vi.restoreAllMocks();
@@ -70,5 +71,19 @@ describe("mock API scenarios", () => {
       path: "/api/courses",
     });
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not fall back to mock data when a real backend request fails", async () => {
+    mockEnv.useMocks = false;
+    vi.spyOn(global, "fetch").mockRejectedValue(new TypeError("fetch failed"));
+
+    await expect(
+      apiClient.get<Course[]>("/api/courses"),
+    ).rejects.toMatchObject({
+      status: 0,
+      error: "Network Error",
+      message: "Unable to connect to server",
+      path: "/api/courses",
+    });
   });
 });
