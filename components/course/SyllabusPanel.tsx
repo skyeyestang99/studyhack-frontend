@@ -174,14 +174,6 @@ export function SyllabusPanel({ course, compact = false }: SyllabusPanelProps) {
           </div>
         )}
 
-        {mode === "global" && (
-          <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            Global Mode is shown for the target shared-course workflow. It will
-            use cross-semester knowledge once the backend shared pool is
-            enforced.
-          </p>
-        )}
-
         {upcomingExam && daysUntil(upcomingExam.dueAt) <= 14 && (
           <div className="rounded-2xl border bg-neutral-950 p-4 text-white shadow-sm">
             <p className="text-sm font-medium">
