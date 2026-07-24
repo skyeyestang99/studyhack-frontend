@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { CheckCircle2, UploadCloud } from "lucide-react";
+import { CheckCircle2, FilePlus2, UploadCloud, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { apiClient } from "@/lib/api-client";
-import { Course } from "@/types/api";
+import { Course, StudyMaterialResponse } from "@/types/api";
 import { env } from "@/lib/env";
 import { getAuthToken } from "@/lib/auth-token";
 import { cn } from "@/lib/utils";
@@ -33,14 +33,27 @@ interface UploadDialogProps {
   onSuccess: () => void;
   courseId?: string;
   courseLabel?: string;
+  defaultMaterialType?: StudyMaterialResponse["materialType"];
 }
 
 const materialTypes = [
+  { value: "SYLLABUS", label: "Syllabus / Schedule" },
   { value: "HOMEWORK", label: "Homework" },
   { value: "PPT", label: "Lecture Slides" },
   { value: "EXAM", label: "Exam" },
   { value: "NOTES", label: "Notes" },
 ];
+
+function uploadErrorMessage(message: string) {
+  if (
+    message.includes("s3.auto.amazonaws.com") ||
+    message.includes("ENOTFOUND") ||
+    message.includes("getaddrinfo")
+  ) {
+    return "Storage is not configured for local upload. I switched the backend to local file storage when R2 is missing; restart the backend and try again.";
+  }
+  return message;
+}
 
 type UploadStatus = "queued" | "uploading" | "ready" | "error";
 
@@ -58,6 +71,7 @@ export function UploadDialog({
   onSuccess,
   courseId: lockedCourseId,
   courseLabel,
+  defaultMaterialType,
 }: UploadDialogProps) {
   const [courses, setCourses] = useState<Course[]>([]);
   const [files, setFiles] = useState<UploadItem[]>([]);
@@ -68,6 +82,7 @@ export function UploadDialog({
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [consent, setConsent] = useState(false);
+  const [validationAttempted, setValidationAttempted] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -83,18 +98,28 @@ export function UploadDialog({
     if (open && lockedCourseId) {
       setCourseId(lockedCourseId);
     }
-  }, [open, lockedCourseId]);
+    if (open && defaultMaterialType) {
+      setMaterialType(defaultMaterialType);
+    }
+  }, [open, lockedCourseId, defaultMaterialType]);
 
-  const canSubmit =
-    files.length > 0 && courseId && materialType && consent && !uploading;
+  const missingRequirements = [
+    files.length === 0 ? "Choose at least one file." : null,
+    !courseId ? "Select a course." : null,
+    !materialType ? "Select a material type." : null,
+    !consent ? "Confirm you have the right to share this material." : null,
+  ].filter((item): item is string => Boolean(item));
+  const canSubmit = missingRequirements.length === 0 && !uploading;
+  const showValidation = validationAttempted && missingRequirements.length > 0;
 
   const resetForm = () => {
     setFiles([]);
     setCourseId(lockedCourseId ?? "");
-    setMaterialType("");
+    setMaterialType(defaultMaterialType ?? "");
     setConsent(false);
     setError(null);
     setSuccess(false);
+    setValidationAttempted(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -122,6 +147,10 @@ export function UploadDialog({
     setFiles((prev) => [...prev, ...nextFiles]);
     setError(null);
     setSuccess(false);
+  };
+
+  const removeFile = (id: string) => {
+    setFiles((prev) => prev.filter((item) => item.id !== id));
   };
 
   const uploadOne = async (item: UploadItem) => {
@@ -164,14 +193,15 @@ export function UploadDialog({
       updateFile(item.id, {
         status: "error",
         progress: 0,
-        error: e instanceof Error ? e.message : "Upload failed",
+        error: uploadErrorMessage(e instanceof Error ? e.message : "Upload failed"),
       });
       return false;
     }
   };
 
   const handleSubmit = async () => {
-    if (!files.length || !courseId || !materialType || !consent) return;
+    setValidationAttempted(true);
+    if (missingRequirements.length > 0) return;
     setUploading(true);
     setError(null);
     setSuccess(false);
@@ -185,26 +215,35 @@ export function UploadDialog({
 
     setUploading(false);
     setSuccess(allSucceeded);
+    if (!allSucceeded) {
+      setError("Some files could not be uploaded. Fix the issue and retry the failed files.");
+    }
     if (allSucceeded) onSuccess();
   };
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Upload Study Material</DialogTitle>
-          <DialogDescription>
-            Add PDF, Word, PowerPoint, text, or Markdown files to the selected course.
-          </DialogDescription>
+      <DialogContent className="flex h-[88vh] max-h-[88vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+        <DialogHeader className="shrink-0">
+          <div className="px-6 pt-6">
+            <DialogTitle>Upload Study Material</DialogTitle>
+            <DialogDescription className="mt-2">
+              Add one file or upload multiple PDF, Word, PowerPoint, text, or Markdown files to the selected course.
+            </DialogDescription>
+          </div>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
           <div className="space-y-2">
             <Label htmlFor="upload-file">Select a file to upload</Label>
             <div
               className={cn(
-                "rounded-lg border border-dashed p-5 text-center transition-colors",
-                dragActive ? "border-primary bg-primary/5" : "bg-muted/30",
+                "rounded-xl border border-dashed p-5 text-center transition-colors",
+                dragActive
+                  ? "border-primary bg-primary/5"
+                  : showValidation && files.length === 0
+                    ? "border-amber-500 bg-amber-50/80"
+                    : "bg-muted/30",
               )}
               onDragOver={(e) => {
                 e.preventDefault();
@@ -219,10 +258,10 @@ export function UploadDialog({
             >
               <UploadCloud className="mx-auto mb-2 h-7 w-7 text-muted-foreground" />
               <p className="text-sm font-medium">
-                Drag and drop a PDF, Word, PowerPoint, text, or Markdown file
+                Drag and drop one or multiple study materials
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                PDF, DOCX, PPTX, TXT, MD
+                PDF, DOCX, PPTX, TXT, MD · multiple files supported
               </p>
             </div>
             <Input
@@ -232,24 +271,55 @@ export function UploadDialog({
               multiple
               accept=".pdf,.txt,.md,.docx,.pptx"
               onChange={(e) => handleFiles(e.target.files)}
+              className="sr-only"
             />
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <FilePlus2 className="mr-2 h-4 w-4" />
+                {files.length > 0 ? "Add more file(s)" : "Choose file(s)"}
+              </Button>
+              {files.length > 0 && (
+                <span className="text-sm text-muted-foreground">
+                  {files.length} file{files.length === 1 ? "" : "s"} selected
+                </span>
+              )}
+            </div>
             {files.length > 0 && (
-              <div className="space-y-2 rounded-md border bg-muted/20 p-3">
+              <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg border bg-muted/20 p-3">
                 {files.map((item) => (
-                  <div key={item.id} className="space-y-1">
-                    <div className="flex items-center justify-between gap-3 text-xs">
-                      <span className="truncate font-medium">
-                        {item.file.name}
-                      </span>
-                      <span
-                        className={cn(
-                          "shrink-0 capitalize text-muted-foreground",
-                          item.status === "ready" && "text-green-700",
-                          item.status === "error" && "text-red-600",
+                  <div key={item.id} className="rounded-md bg-background px-3 py-2">
+                    <div className="flex items-start justify-between gap-3 text-xs">
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{item.file.name}</p>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">
+                          {(item.file.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span
+                          className={cn(
+                            "capitalize text-muted-foreground",
+                            item.status === "ready" && "text-green-700",
+                            item.status === "error" && "text-red-600",
+                          )}
+                        >
+                          {item.status === "ready" ? "uploaded" : item.status}
+                        </span>
+                        {!uploading && item.status !== "ready" && (
+                          <button
+                            type="button"
+                            onClick={() => removeFile(item.id)}
+                            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                            aria-label={`Remove ${item.file.name}`}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
                         )}
-                      >
-                        {item.status === "ready" ? "uploaded" : item.status}
-                      </span>
+                      </div>
                     </div>
                     <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                       <div
@@ -261,7 +331,7 @@ export function UploadDialog({
                       />
                     </div>
                     {item.error && (
-                      <p className="text-xs text-red-600">{item.error}</p>
+                      <p className="mt-1 text-xs leading-5 text-red-600">{item.error}</p>
                     )}
                   </div>
                 ))}
@@ -280,7 +350,14 @@ export function UploadDialog({
             <div className="space-y-2">
               <Label htmlFor="upload-course">Course</Label>
               <Select value={courseId} onValueChange={setCourseId}>
-                <SelectTrigger id="upload-course">
+                <SelectTrigger
+                  id="upload-course"
+                  className={cn(
+                    showValidation &&
+                      !courseId &&
+                      "border-amber-500 ring-1 ring-amber-500",
+                  )}
+                >
                   <SelectValue placeholder="Select a course" />
                 </SelectTrigger>
                 <SelectContent>
@@ -297,7 +374,14 @@ export function UploadDialog({
           <div className="space-y-2">
             <Label htmlFor="upload-type">Material Type</Label>
             <Select value={materialType} onValueChange={setMaterialType}>
-              <SelectTrigger id="upload-type">
+              <SelectTrigger
+                id="upload-type"
+                className={cn(
+                  showValidation &&
+                    !materialType &&
+                    "border-amber-500 ring-1 ring-amber-500",
+                )}
+              >
                 <SelectValue placeholder="Select type" />
               </SelectTrigger>
               <SelectContent>
@@ -310,7 +394,14 @@ export function UploadDialog({
             </Select>
           </div>
 
-          <div className="flex items-start gap-2 rounded-md border bg-muted/20 p-3">
+          <div
+            className={cn(
+              "flex items-start gap-2 rounded-md border bg-muted/20 p-3",
+              showValidation &&
+                !consent &&
+                "border-amber-500 bg-amber-50/80",
+            )}
+          >
             <input
               id="upload-consent"
               type="checkbox"
@@ -346,6 +437,21 @@ export function UploadDialog({
             </p>
           )}
 
+          {showValidation && (
+            <div
+              className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+              aria-live="assertive"
+              role="alert"
+            >
+              <p className="font-medium">Complete these before uploading:</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                {missingRequirements.map((requirement) => (
+                  <li key={requirement}>{requirement}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {(uploading || success) && (
             <div className="space-y-2">
               <p className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -360,7 +466,7 @@ export function UploadDialog({
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0 border-t bg-background px-6 py-4">
           <Button
             variant="outline"
             onClick={() => handleOpenChange(false)}
@@ -368,7 +474,7 @@ export function UploadDialog({
           >
             {success ? "Done" : "Cancel"}
           </Button>
-          <Button onClick={handleSubmit} disabled={!canSubmit}>
+          <Button onClick={handleSubmit} disabled={uploading}>
             {uploading ? "Uploading…" : `Upload ${files.length || ""}`.trim()}
           </Button>
         </DialogFooter>

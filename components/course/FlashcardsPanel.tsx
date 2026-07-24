@@ -173,7 +173,7 @@ export function FlashcardsPanel({ course }: { course: Course }) {
               <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 {flipped ? "Answer" : "Prompt"} · tap to flip
               </p>
-              <div className="prose prose-sm max-w-none dark:prose-invert">
+              <div className="prose prose-sm max-w-none">
                 <Md>{flipped ? card?.back ?? "" : card?.front ?? ""}</Md>
               </div>
             </button>

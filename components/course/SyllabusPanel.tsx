@@ -9,6 +9,7 @@ import type { SyllabusEvent } from "@/lib/mock-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { UploadDialog } from "@/components/dashboard/UploadDialog";
 import {
   StudyGuideMode,
   StudyGuideModeToggle,
@@ -45,6 +46,7 @@ export function SyllabusPanel({ course, compact = false }: SyllabusPanelProps) {
   const [type, setType] = useState("MIDTERM");
   const [dueAt, setDueAt] = useState("");
   const [saving, setSaving] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
 
   const loadEvents = useCallback(async () => {
     try {
@@ -125,14 +127,20 @@ export function SyllabusPanel({ course, compact = false }: SyllabusPanelProps) {
               course materials.
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => setShowForm((s) => !s)}>
-            {showForm ? (
-              <X className="mr-2 h-4 w-4" />
-            ) : (
-              <Plus className="mr-2 h-4 w-4" />
-            )}
-            {showForm ? "Cancel" : "Add date"}
-          </Button>
+          <div className="flex shrink-0 gap-2">
+            <Button variant="outline" size="sm" onClick={() => setUploadOpen(true)}>
+              <FileText className="mr-2 h-4 w-4" />
+              Upload syllabus
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowForm((s) => !s)}>
+              {showForm ? (
+                <X className="mr-2 h-4 w-4" />
+              ) : (
+                <Plus className="mr-2 h-4 w-4" />
+              )}
+              {showForm ? "Cancel" : "Add exam date"}
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -194,7 +202,11 @@ export function SyllabusPanel({ course, compact = false }: SyllabusPanelProps) {
         ) : visibleEvents.length === 0 ? (
           <div className="rounded-xl border bg-neutral-50 p-4 text-sm text-muted-foreground">
             <FileText className="mb-2 h-5 w-5" />
-            Upload a syllabus to unlock homework, midterm, and final reminders.
+            <p className="font-medium text-foreground">No syllabus dates yet</p>
+            <p className="mt-1">
+              Upload your syllabus as a course material, then add exam dates
+              from the top action when you want Study Guide countdowns.
+            </p>
           </div>
         ) : (
           <div className="divide-y overflow-hidden rounded-xl border bg-white">
@@ -228,6 +240,14 @@ export function SyllabusPanel({ course, compact = false }: SyllabusPanelProps) {
           </div>
         )}
       </CardContent>
+      <UploadDialog
+        open={uploadOpen}
+        onOpenChange={setUploadOpen}
+        onSuccess={() => setUploadOpen(false)}
+        courseId={course.id}
+        courseLabel={`${course.code} — ${course.name}`}
+        defaultMaterialType="SYLLABUS"
+      />
     </Card>
   );
 }

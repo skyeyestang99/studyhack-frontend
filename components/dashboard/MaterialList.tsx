@@ -45,6 +45,7 @@ const FALLBACK_STATUS = {
 };
 
 const typeLabels: Record<StudyMaterialResponse["materialType"], string> = {
+  SYLLABUS: "Syllabus / Schedule",
   HOMEWORK: "Homework",
   PPT: "Lecture Slides",
   EXAM: "Exam",
