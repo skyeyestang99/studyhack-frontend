@@ -109,7 +109,6 @@ export function UploadDialog({
     !materialType ? "Select a material type." : null,
     !consent ? "Confirm you have the right to share this material." : null,
   ].filter((item): item is string => Boolean(item));
-  const canSubmit = missingRequirements.length === 0 && !uploading;
   const showValidation = validationAttempted && missingRequirements.length > 0;
 
   const resetForm = () => {
