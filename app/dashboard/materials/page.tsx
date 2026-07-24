@@ -22,6 +22,7 @@ const materialTypeFields: FieldConfig[] = [
     type: "select",
     required: true,
     options: [
+      { value: "SYLLABUS", label: "Syllabus / Schedule" },
       { value: "HOMEWORK", label: "Homework" },
       { value: "PPT", label: "Lecture Slides" },
       { value: "EXAM", label: "Exam" },

@@ -312,10 +312,37 @@ describe("student workspace flows", () => {
     }
     expect(screen.getAllByText("queued")).toHaveLength(4);
     expect(screen.getByText("Select type")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Upload 4" })).toBeDisabled();
+    const uploadButton = screen.getByRole("button", { name: "Upload 4" });
+    expect(uploadButton).toBeEnabled();
+
+    fireEvent.click(uploadButton);
+
+    expect(
+      screen.getByText("Complete these before uploading:"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Select a material type.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Confirm you have the right to share this material."),
+    ).toBeInTheDocument();
   });
 
-  it("opens a PDF material preview from the materials list", () => {
+  it("opens a PDF material preview from the materials list", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(new Blob(["pdf"], { type: "application/pdf" }), {
+        status: 200,
+      }),
+    );
+    const createObjectUrl = vi.fn(() => "blob:material-preview");
+    const revokeObjectUrl = vi.fn();
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: createObjectUrl,
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: revokeObjectUrl,
+    });
+
     const material: StudyMaterialResponse = {
       id: "mat-cse101-midterm-review",
       fileName: "CSE101 Midterm Review.pdf",
@@ -361,11 +388,15 @@ describe("student workspace flows", () => {
       screen.getByRole("heading", { name: "CSE101 Midterm Review.pdf" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Open file" }),
-    ).toHaveAttribute("href", "/mock-materials/cse101-midterm-review.pdf");
+      await screen.findByRole("link", { name: "Open file" }),
+    ).toHaveAttribute("href", "blob:material-preview");
     expect(
       screen.getByTitle("Preview CSE101 Midterm Review.pdf"),
-    ).toHaveAttribute("src", "/mock-materials/cse101-midterm-review.pdf");
+    ).toHaveAttribute("src", "blob:material-preview");
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/mock-materials/cse101-midterm-review.pdf",
+      { headers: { Authorization: "Bearer mock-token" } },
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
 
