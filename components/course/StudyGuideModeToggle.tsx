@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 
-export type StudyGuideMode = "personal" | "global";
+export type StudyGuideMode = "personal" | "course";
 
 interface StudyGuideModeToggleProps {
   value: StudyGuideMode;
@@ -17,9 +17,9 @@ const options: Array<{ value: StudyGuideMode; label: string; detail: string }> =
       detail: "Personal Mode · this semester's uploads",
     },
     {
-      value: "global",
+      value: "course",
       label: "Class knowledge base",
-      detail: "Global Mode · similar course materials",
+      detail: "Course Mode · materials from this course",
     },
   ];
 
