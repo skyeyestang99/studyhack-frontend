@@ -10,7 +10,7 @@ export default function CoursesLayout({
   return (
     <ProtectedRoute>
       <OnboardingGate>
-        <div className="flex h-[calc(100vh-4rem)] flex-col bg-background md:flex-row">
+        <div className="flex h-[calc(100vh-4rem)] flex-col md:flex-row">
           <DashboardSidebar />
           <main className="min-w-0 flex-1 overflow-auto">{children}</main>
         </div>

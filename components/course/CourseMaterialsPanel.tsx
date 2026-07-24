@@ -29,7 +29,6 @@ const materialTypeFields: FieldConfig[] = [
     type: "select",
     required: true,
     options: [
-      { value: "SYLLABUS", label: "Syllabus / Schedule" },
       { value: "HOMEWORK", label: "Homework" },
       { value: "PPT", label: "Lecture Slides" },
       { value: "EXAM", label: "Exam" },
@@ -167,7 +166,6 @@ export function CourseMaterialsPanel({
         onSuccess={fetchMaterials}
         courseId={course.id}
         courseLabel={`${course.code} — ${course.name}`}
-        defaultMaterialType={materialType}
       />
 
       <EntityModal

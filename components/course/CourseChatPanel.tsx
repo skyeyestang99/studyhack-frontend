@@ -34,7 +34,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DeleteDialog } from "@/components/dashboard/DeleteDialog";
 import { GroundingBadge } from "@/components/course/GroundingBadge";
 import { getAuthToken } from "@/lib/auth-token";
-import { resolveMaterialUrl } from "@/lib/urls";
 
 interface CourseChatPanelProps {
   course: Course;
@@ -169,8 +168,7 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
       if (!res.ok) throw new Error();
       const data = (await res.json()) as { previewUrl?: string };
       if (!data.previewUrl) throw new Error();
-      const previewUrl = resolveMaterialUrl(data.previewUrl);
-      const url = page && page > 1 ? `${previewUrl}#page=${page}` : previewUrl;
+      const url = page && page > 1 ? `${data.previewUrl}#page=${page}` : data.previewUrl;
       window.open(url, "_blank", "noopener");
     } catch {
       toast.error("Couldn't open that source");
@@ -694,7 +692,7 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                                 )}
                               </div>
                             )}
-                            <div className="prose prose-sm max-w-none">
+                            <div className="prose prose-sm max-w-none dark:prose-invert">
                               <Markdown
                                 remarkPlugins={[remarkGfm, remarkMath]}
                                 rehypePlugins={[rehypeKatex]}
@@ -795,7 +793,7 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                           </div>
                         )}
                         {streamingText ? (
-                          <div className="prose prose-sm max-w-none">
+                          <div className="prose prose-sm max-w-none dark:prose-invert">
                             <Markdown
                               remarkPlugins={[remarkGfm, remarkMath]}
                               rehypePlugins={[rehypeKatex]}

@@ -92,18 +92,8 @@ async function handleResponse<T>(response: Response): Promise<T> {
   // 4xx: parse backend error response
   if (response.status >= 400 && response.status < 500) {
     try {
-      const body = await response.json();
-      throw {
-        timestamp: body.timestamp ?? new Date().toISOString(),
-        status: body.status ?? response.status,
-        error: body.error ?? body.code ?? response.statusText,
-        message: body.message ?? response.statusText,
-        path: body.path ?? new URL(response.url).pathname,
-        errors: body.errors,
-        candidates: body.candidates,
-        code: body.code,
-        details: body.details,
-      } as ApiError;
+      const error: ApiError = await response.json();
+      throw error;
     } catch (e) {
       // If parsing fails, the error wasn't an ApiError — rethrow if it already is one
       if ((e as ApiError).status) throw e;
