@@ -31,7 +31,14 @@ jobs:
         run: npm install --global vercel@latest
 
       - name: Pull Vercel env
-        run: vercel pull --yes --environment=${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }} --token=${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+          else
+            # Preview vars are branch-scoped to staging; must pass --git-branch or
+            # the pull returns empty NEXT_PUBLIC_* and the build ships broken.
+            vercel pull --yes --environment=preview --git-branch=staging --token=${{ secrets.VERCEL_TOKEN }}
+          fi
 
       - name: Build
         run: vercel build ${{ github.ref == 'refs/heads/main' && '--prod' || '' }} --token=${{ secrets.VERCEL_TOKEN }}
