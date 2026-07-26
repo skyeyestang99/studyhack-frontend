@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import Navigation from "@/components/layout/Navigation";
+import Footer from "@/components/layout/Footer";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Toaster } from "sonner";
@@ -44,6 +45,7 @@ export default function RootLayout({
           <div className="flex min-h-screen flex-col bg-background text-foreground">
             <Navigation />
             <main className="flex-1">{children}</main>
+            <Footer />
           </div>
           <Toaster />
         </AuthProvider>

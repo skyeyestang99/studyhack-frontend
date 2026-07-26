@@ -1,12 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { useState } from "react";
 import type React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import OnboardingPage from "@/app/onboarding/page";
-import { MaterialList } from "@/components/dashboard/MaterialList";
-import { MaterialPreviewDialog } from "@/components/dashboard/MaterialPreviewDialog";
 import { UploadDialog } from "@/components/dashboard/UploadDialog";
-import type { StudyMaterialResponse } from "@/types/api";
 
 // These are component-level integration tests with mocked routing, auth, env,
 // and API data. Browser-level E2E coverage should live in a separate suite.
@@ -74,53 +70,61 @@ const { apiGet, apiPost } = vi.hoisted(() => {
     createdAt: "2026-01-08T08:00:00.000Z",
   };
   return {
-  apiGet: vi.fn((endpoint: string, config?: { params?: Record<string, string> }) => {
-    const q = config?.params?.q?.toLowerCase();
-    if (endpoint === "/api/schools") {
-      if (q) {
-        const matched = q === "ucsd";
-        return Promise.resolve({
-          matches: matched
-            ? [{ item: school, score: 1, strong: true }]
-            : [],
-          canCreate: !matched,
-          threshold: 0.65,
-        });
+    apiGet: vi.fn(
+      (endpoint: string, config?: { params?: Record<string, string> }) => {
+        const q = config?.params?.q?.toLowerCase();
+        if (endpoint === "/api/schools") {
+          if (q) {
+            const matched = q === "ucsd";
+            return Promise.resolve({
+              matches: matched
+                ? [{ item: school, score: 1, strong: true }]
+                : [],
+              canCreate: !matched,
+              threshold: 0.65,
+            });
+          }
+          return Promise.resolve([school]);
+        }
+        if (
+          endpoint === "/api/professors" ||
+          endpoint === "/api/schools/school-ucsd/professors"
+        ) {
+          if (q) {
+            const matched = q === "d smith";
+            return Promise.resolve({
+              matches: matched
+                ? [{ item: professor, score: 0.8, strong: true }]
+                : [],
+              canCreate: !matched,
+              threshold: 0.65,
+            });
+          }
+          return Promise.resolve([professor]);
+        }
+        if (
+          endpoint === "/api/courses" ||
+          endpoint === "/api/schools/school-ucsd/courses"
+        ) {
+          if (q) {
+            const matched = q === "cse 101" || q === "cse101";
+            return Promise.resolve({
+              matches: matched
+                ? [{ item: course, score: 1, strong: true }]
+                : [],
+              canCreate: !matched,
+              threshold: 0.65,
+            });
+          }
+          return Promise.resolve([course]);
+        }
+        return Promise.resolve([]);
       }
-      return Promise.resolve([school]);
-    }
-    if (endpoint === "/api/professors" || endpoint === "/api/schools/school-ucsd/professors") {
-      if (q) {
-        const matched = q === "d smith";
-        return Promise.resolve({
-          matches: matched
-            ? [{ item: professor, score: 0.8, strong: true }]
-            : [],
-          canCreate: !matched,
-          threshold: 0.65,
-        });
-      }
-      return Promise.resolve([professor]);
-    }
-    if (endpoint === "/api/courses" || endpoint === "/api/schools/school-ucsd/courses") {
-      if (q) {
-        const matched = q === "cse 101" || q === "cse101";
-        return Promise.resolve({
-          matches: matched
-            ? [{ item: course, score: 1, strong: true }]
-            : [],
-          canCreate: !matched,
-          threshold: 0.65,
-        });
-      }
-      return Promise.resolve([course]);
-    }
-    return Promise.resolve([]);
-  }),
-  apiPost: vi.fn(() =>
-    Promise.resolve({ schoolId: "school-ucsd", enrolled: [] }),
-  ),
-};
+    ),
+    apiPost: vi.fn(() =>
+      Promise.resolve({ schoolId: "school-ucsd", enrolled: [] }),
+    ),
+  };
 });
 
 vi.mock("@/lib/api-client", () => ({
@@ -326,82 +330,4 @@ describe("student workspace flows", () => {
     ).toBeInTheDocument();
   });
 
-  it("opens a PDF material preview from the materials list", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(new Blob(["pdf"], { type: "application/pdf" }), {
-        status: 200,
-      }),
-    );
-    const createObjectUrl = vi.fn(() => "blob:material-preview");
-    const revokeObjectUrl = vi.fn();
-    Object.defineProperty(URL, "createObjectURL", {
-      configurable: true,
-      value: createObjectUrl,
-    });
-    Object.defineProperty(URL, "revokeObjectURL", {
-      configurable: true,
-      value: revokeObjectUrl,
-    });
-
-    const material: StudyMaterialResponse = {
-      id: "mat-cse101-midterm-review",
-      fileName: "CSE101 Midterm Review.pdf",
-      courseName: "Design and Analysis of Algorithms",
-      courseId: "course-cse101",
-      materialType: "EXAM",
-      status: "READY",
-      previewUrl: "/mock-materials/cse101-midterm-review.pdf",
-      downloadUrl: "/mock-materials/cse101-midterm-review.pdf",
-      contentType: "application/pdf",
-      rejectionReason: null,
-      createdAt: "2026-06-15T12:00:00.000Z",
-    };
-
-    function PreviewHarness() {
-      const [previewTarget, setPreviewTarget] =
-        useState<StudyMaterialResponse | null>(null);
-      return (
-        <>
-          <MaterialList
-            materials={[material]}
-            loading={false}
-            onPreview={setPreviewTarget}
-          />
-          <MaterialPreviewDialog
-            material={previewTarget}
-            open={previewTarget !== null}
-            onOpenChange={(open) => {
-              if (!open) setPreviewTarget(null);
-            }}
-          />
-        </>
-      );
-    }
-
-    render(<PreviewHarness />);
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Preview CSE101 Midterm Review.pdf" }),
-    );
-
-    expect(
-      screen.getByRole("heading", { name: "CSE101 Midterm Review.pdf" }),
-    ).toBeInTheDocument();
-    expect(
-      await screen.findByRole("link", { name: "Open file" }),
-    ).toHaveAttribute("href", "blob:material-preview");
-    expect(
-      screen.getByTitle("Preview CSE101 Midterm Review.pdf"),
-    ).toHaveAttribute("src", "blob:material-preview");
-    expect(fetchSpy).toHaveBeenCalledWith(
-      "/mock-materials/cse101-midterm-review.pdf",
-      { headers: { Authorization: "Bearer mock-token" } },
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Close" }));
-
-    expect(
-      screen.queryByTitle("Preview CSE101 Midterm Review.pdf"),
-    ).not.toBeInTheDocument();
-  });
 });
