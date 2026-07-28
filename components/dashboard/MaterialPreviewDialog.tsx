@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ExternalLink, FileText } from "lucide-react";
 import type { StudyMaterialResponse } from "@/types/api";
 import { Button } from "@/components/ui/button";
+import { env } from "@/lib/env";
 import { resolveMaterialUrl } from "@/lib/urls";
 import { getAuthToken } from "@/lib/auth-token";
 import {
@@ -25,6 +26,19 @@ function isPdf(material: StudyMaterialResponse) {
   return contentType.includes("pdf") || material.fileName.toLowerCase().endsWith(".pdf");
 }
 
+function shouldAttachAuth(url: string) {
+  if (url.startsWith("/api/")) return true;
+  try {
+    return new URL(url).origin === new URL(env.apiUrl).origin;
+  } catch {
+    return false;
+  }
+}
+
+function shouldFetchAsBlob(url: string) {
+  return shouldAttachAuth(url);
+}
+
 export function MaterialPreviewDialog({
   material,
   open,
@@ -36,12 +50,14 @@ export function MaterialPreviewDialog({
 
   const rawPreviewUrl = material?.previewUrl ?? material?.downloadUrl ?? null;
   const previewUrl = rawPreviewUrl ? resolveMaterialUrl(rawPreviewUrl) : null;
-  const canRenderPdf = Boolean(fileUrl && material && isPdf(material));
   const rawOpenUrl = material?.downloadUrl ?? material?.previewUrl ?? null;
   const openUrl = rawOpenUrl ? resolveMaterialUrl(rawOpenUrl) : null;
+  const needsBlobFetch = Boolean(openUrl && shouldFetchAsBlob(openUrl));
+  const renderUrl = needsBlobFetch ? fileUrl : previewUrl;
+  const canRenderPdf = Boolean(renderUrl && material && isPdf(material));
 
   useEffect(() => {
-    if (!open || !material || !openUrl) {
+    if (!open || !material || !openUrl || !needsBlobFetch) {
       setFileUrl(null);
       setFileError(null);
       setFileLoading(false);
@@ -81,7 +97,7 @@ export function MaterialPreviewDialog({
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [open, material, openUrl]);
+  }, [open, material, openUrl, needsBlobFetch]);
 
   if (!material) return null;
 
@@ -111,7 +127,7 @@ export function MaterialPreviewDialog({
             ) : canRenderPdf ? (
               <iframe
                 className="h-full min-h-[520px] w-full border-0"
-                src={fileUrl ?? previewUrl ?? undefined}
+                src={renderUrl ?? undefined}
                 title={`Preview ${material.fileName}`}
               />
             ) : (
@@ -157,9 +173,9 @@ export function MaterialPreviewDialog({
                   {material.contentType ?? "Unknown"}
                 </p>
               </div>
-              {fileUrl && (
+              {renderUrl && (
                 <Button asChild className="w-full">
-                  <a href={fileUrl} target="_blank" rel="noreferrer">
+                  <a href={renderUrl} target="_blank" rel="noreferrer">
                     <ExternalLink className="mr-2 h-4 w-4" />
                     Open file
                   </a>

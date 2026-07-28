@@ -29,12 +29,13 @@ describe("MaterialPreviewDialog", () => {
     vi.restoreAllMocks();
   });
 
-  it("loads a PDF with auth and renders the blob preview URL", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(new Blob(["pdf"], { type: "application/pdf" }), {
-        status: 200,
-      }),
-    );
+  it("renders a presigned PDF URL directly without auth fetch", async () => {
+    const presignedMaterial = {
+      ...pdfMaterial,
+      previewUrl: "https://r2.example.com/signed-preview",
+      downloadUrl: "https://r2.example.com/signed-preview",
+    };
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
     const createObjectUrl = vi.fn(() => "blob:material-preview");
     const revokeObjectUrl = vi.fn();
     Object.defineProperty(URL, "createObjectURL", {
@@ -49,7 +50,7 @@ describe("MaterialPreviewDialog", () => {
     const onOpenChange = vi.fn();
     const { unmount } = render(
       <MaterialPreviewDialog
-        material={pdfMaterial}
+        material={presignedMaterial}
         open
         onOpenChange={onOpenChange}
       />,
@@ -58,20 +59,53 @@ describe("MaterialPreviewDialog", () => {
     expect(
       screen.getByRole("heading", { name: "CSE101 Midterm Review.pdf" }),
     ).toBeInTheDocument();
-    expect(await screen.findByRole("link", { name: "Open file" }))
-      .toHaveAttribute("href", "blob:material-preview");
+    expect(screen.getByRole("link", { name: "Open file" }))
+      .toHaveAttribute("href", "https://r2.example.com/signed-preview");
     expect(screen.getByTitle("Preview CSE101 Midterm Review.pdf"))
-      .toHaveAttribute("src", "blob:material-preview");
-    expect(fetchSpy).toHaveBeenCalledWith(
-      "/mock-materials/cse101-midterm-review.pdf",
-      { headers: { Authorization: "Bearer mock-token" } },
-    );
-    expect(createObjectUrl).toHaveBeenCalledWith(expect.any(Object));
+      .toHaveAttribute("src", "https://r2.example.com/signed-preview");
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(createObjectUrl).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
     unmount();
-    expect(revokeObjectUrl).toHaveBeenCalledWith("blob:material-preview");
+    expect(revokeObjectUrl).not.toHaveBeenCalled();
+  });
+
+  it("keeps auth for backend preview URLs", async () => {
+    const backendMaterial = {
+      ...pdfMaterial,
+      previewUrl: "http://localhost:8080/api/materials/mat-1/preview-file",
+      downloadUrl: "http://localhost:8080/api/materials/mat-1/preview-file",
+    };
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(new Blob(["pdf"], { type: "application/pdf" }), {
+        status: 200,
+      }),
+    );
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: vi.fn(() => "blob:material-preview"),
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: vi.fn(),
+    });
+
+    render(
+      <MaterialPreviewDialog
+        material={backendMaterial}
+        open
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByRole("link", { name: "Open file" }))
+      .toHaveAttribute("href", "blob:material-preview");
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "http://localhost:8080/api/materials/mat-1/preview-file",
+      { headers: { Authorization: "Bearer mock-token" } },
+    );
   });
 });
