@@ -20,6 +20,7 @@ import {
   RefreshCw,
   Send,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
@@ -43,6 +44,7 @@ import type {
 } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DeleteDialog } from "@/components/dashboard/DeleteDialog";
 import {
   Select,
   SelectContent,
@@ -142,6 +144,9 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
   const [editSummary, setEditSummary] = useState("");
   const [editKeyPoints, setEditKeyPoints] = useState("");
   const [editRunning, setEditRunning] = useState(false);
+  const [deleteGuideTarget, setDeleteGuideTarget] =
+    useState<{ id: string; label: string } | null>(null);
+  const [deletingGuide, setDeletingGuide] = useState(false);
   const [revisionConcept, setRevisionConcept] =
     useState<StudyGuideConcept | null>(null);
   const [revisionInstruction, setRevisionInstruction] = useState("");
@@ -424,7 +429,36 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
     }
   };
 
+  const deleteSelectedGuide = async () => {
+    if (!deleteGuideTarget) return;
+    setDeletingGuide(true);
+    try {
+      await apiClient.delete<void>(`/api/study-guides/${deleteGuideTarget.id}`);
+      const rows = await apiClient.get<StudyGuideListItem[]>(
+        `/api/courses/${course.id}/study-guides`,
+      );
+      const nextGuideId = rows[0]?.id ?? null;
+      setGuides(rows);
+      setSelectedGuideId(nextGuideId);
+      if (!nextGuideId) {
+        setGuide(null);
+        setVersions([]);
+        setViewingVersion(null);
+      }
+      setEditingGuide(false);
+      setEditConcept(null);
+      setRevisionConcept(null);
+      setDeleteGuideTarget(null);
+      toast.success("Study guide deleted.");
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setDeletingGuide(false);
+    }
+  };
+
   return (
+    <>
     <section className="min-h-[760px] overflow-hidden rounded-xl border border-border bg-background text-foreground shadow-sm">
       <div
         className={cn(
@@ -792,6 +826,23 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                   <Pencil className="mr-2 h-3.5 w-3.5" />
                   Edit overview
                 </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-2 w-full border-red-200 bg-background text-red-600 hover:bg-red-50 hover:text-red-700"
+                  disabled={!guide}
+                  onClick={() =>
+                    guide &&
+                    setDeleteGuideTarget({
+                      id: guide.id,
+                      label: selectedLabel,
+                    })
+                  }
+                >
+                  <Trash2 className="mr-2 h-3.5 w-3.5" />
+                  Delete guide
+                </Button>
               </div>
 
               <div className="rounded-xl border border-border bg-card p-4">
@@ -1030,6 +1081,15 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
         </div>
       </div>
     </section>
+    <DeleteDialog
+      open={deleteGuideTarget !== null}
+      entityName="study guide"
+      itemName={deleteGuideTarget?.label ?? ""}
+      onConfirm={deleteSelectedGuide}
+      onCancel={() => setDeleteGuideTarget(null)}
+      isDeleting={deletingGuide}
+    />
+    </>
   );
 }
 
