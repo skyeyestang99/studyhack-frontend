@@ -104,13 +104,18 @@ export function SyllabusPanel({ course, compact = false }: SyllabusPanelProps) {
     }
   };
 
-  const upcomingExam = useMemo(
-    () =>
-      events.find(
-        (event) => examTypes.has(event.type) && daysUntil(event.dueAt) >= 0,
-      ),
-    [events],
-  );
+  const highlightedExam = useMemo(() => {
+    const exams = events.filter((event) => examTypes.has(event.type));
+    return (
+      exams.find((event) => daysUntil(event.dueAt) >= 0) ??
+      exams
+        .filter((event) => daysUntil(event.dueAt) < 0)
+        .sort(
+          (a, b) =>
+            new Date(b.dueAt).getTime() - new Date(a.dueAt).getTime(),
+        )[0]
+    );
+  }, [events]);
   const visibleEvents = compact ? events.slice(0, 4) : events;
 
   return (
@@ -182,18 +187,43 @@ export function SyllabusPanel({ course, compact = false }: SyllabusPanelProps) {
           </div>
         )}
 
-        {upcomingExam && daysUntil(upcomingExam.dueAt) <= 14 && (
-          <div className="rounded-2xl border bg-neutral-950 p-4 text-white shadow-sm">
+        {highlightedExam && (
+          <div
+            className={
+              daysUntil(highlightedExam.dueAt) >= 0 &&
+              daysUntil(highlightedExam.dueAt) <= 14
+                ? "rounded-2xl border bg-neutral-950 p-4 text-white shadow-sm"
+                : "rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950 shadow-sm"
+            }
+          >
             <p className="text-sm font-medium">
-              {upcomingExam.title} is in {daysUntil(upcomingExam.dueAt)} days
+              {daysUntil(highlightedExam.dueAt) >= 0
+                ? `${highlightedExam.title} is in ${daysUntil(
+                    highlightedExam.dueAt,
+                  )} days`
+                : `${highlightedExam.title} was ${Math.abs(
+                    daysUntil(highlightedExam.dueAt),
+                  )} days ago`}
             </p>
-            <p className="mt-1 text-sm text-white/70">
-              {formatDate(upcomingExam.dueAt)}
+            <p
+              className={
+                daysUntil(highlightedExam.dueAt) >= 0 &&
+                daysUntil(highlightedExam.dueAt) <= 14
+                  ? "mt-1 text-sm text-white/70"
+                  : "mt-1 text-sm text-amber-800"
+              }
+            >
+              {formatDate(highlightedExam.dueAt)}
+              {daysUntil(highlightedExam.dueAt) < 0
+                ? " · already passed. Add a future exam date to enable countdowns."
+                : ""}
             </p>
-            <Button className="mt-3 bg-white text-neutral-950 hover:bg-white/90" size="sm">
-              <Sparkles className="mr-2 h-4 w-4" />
-              Generate Study Guide
-            </Button>
+            {daysUntil(highlightedExam.dueAt) >= 0 && (
+              <Button className="mt-3 bg-white text-neutral-950 hover:bg-white/90" size="sm">
+                <Sparkles className="mr-2 h-4 w-4" />
+                Generate Study Guide
+              </Button>
+            )}
           </div>
         )}
 

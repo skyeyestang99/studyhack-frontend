@@ -121,6 +121,119 @@ function formatEventTime(date: string) {
   }).format(new Date(date));
 }
 
+const examTypes = new Set(["MIDTERM", "FINAL"]);
+
+function preferredExamTypes(target: string) {
+  const normalized = target.toLowerCase();
+  const types = new Set<string>();
+  if (/\bfinal\b/.test(normalized)) types.add("FINAL");
+  if (/\b(midterm|mid-term|mid)\b/.test(normalized)) types.add("MIDTERM");
+  return types;
+}
+
+function significantTerms(value: string) {
+  return value
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((term) => term.length > 2 && !["exam", "test", "the"].includes(term));
+}
+
+function titleMatchesTarget(event: SyllabusEvent, target: string) {
+  const title = event.title.toLowerCase();
+  const normalizedTarget = target.trim().toLowerCase();
+  if (!normalizedTarget) return true;
+  if (title.includes(normalizedTarget) || normalizedTarget.includes(title)) return true;
+  const terms = significantTerms(normalizedTarget);
+  return terms.length > 0 && terms.some((term) => title.includes(term));
+}
+
+function eventDistance(event: SyllabusEvent) {
+  return new Date(event.dueAt).getTime() - Date.now();
+}
+
+function nearestFuture(events: SyllabusEvent[]) {
+  return events
+    .filter((event) => eventDistance(event) >= 0)
+    .sort((a, b) => eventDistance(a) - eventDistance(b))[0];
+}
+
+function nearestPast(events: SyllabusEvent[]) {
+  return events
+    .filter((event) => eventDistance(event) < 0)
+    .sort((a, b) => eventDistance(b) - eventDistance(a))[0];
+}
+
+function pickCountdownEvent(
+  events: SyllabusEvent[],
+  courseId: string,
+  target: string,
+) {
+  const examEvents = events.filter(
+    (event) => event.courseId === courseId && examTypes.has(event.type),
+  );
+  const preferredTypes = preferredExamTypes(target);
+  const typedMatches =
+    preferredTypes.size > 0
+      ? examEvents.filter((event) => preferredTypes.has(event.type))
+      : [];
+  const titleMatches = examEvents.filter((event) => titleMatchesTarget(event, target));
+  const matched = typedMatches.length > 0 ? typedMatches : titleMatches;
+  const fallback = matched.length > 0 ? matched : examEvents;
+
+  return {
+    event: nearestFuture(matched) ?? nearestPast(matched) ?? null,
+    fallbackEvent:
+      matched.length > 0 ? null : nearestFuture(fallback) ?? nearestPast(fallback) ?? null,
+  };
+}
+
+function countdownCopy(
+  event: SyllabusEvent | null,
+  fallbackEvent: SyllabusEvent | null,
+  target: string,
+) {
+  if (event) {
+    const days = daysUntil(event.dueAt);
+    const label =
+      target.trim() && !titleMatchesTarget(event, target)
+        ? `${target.trim()}: ${event.title}`
+        : event.title;
+    return {
+      title:
+        days >= 0
+          ? `${label} is in ${days} days`
+          : `${label} was ${Math.abs(days)} days ago`,
+      subtitle:
+        days >= 0
+          ? formatEventTime(event.dueAt)
+          : `${formatEventTime(event.dueAt)} · already passed`,
+      isPast: days < 0,
+    };
+  }
+
+  if (fallbackEvent) {
+    const days = daysUntil(fallbackEvent.dueAt);
+    return {
+      title: `${target || "Exam"} date not found`,
+      subtitle:
+        days >= 0
+          ? `Closest parsed exam: ${fallbackEvent.title} · ${formatEventTime(
+              fallbackEvent.dueAt,
+            )}`
+          : `Past exam found: ${fallbackEvent.title} · ${formatEventTime(
+              fallbackEvent.dueAt,
+            )}`,
+      isPast: days < 0,
+    };
+  }
+
+  return {
+    title: `${target || "Exam"} countdown not set`,
+    subtitle: "Upload a syllabus or add an exam date from the course home page.",
+    isPast: false,
+  };
+}
+
 export function PersistedStudyGuidePanel({ course }: { course: Course }) {
   const [target, setTarget] = useState("Midterm 1");
   const [retrievalMode, setRetrievalMode] =
@@ -172,24 +285,21 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
     return row?.title || row?.target || "Select guide";
   }, [guides, selectedGuideId]);
 
-  const countdownEvent = useMemo(() => {
-    const examEvents = syllabusEvents
-      .filter(
-        (event) =>
-          event.courseId === course.id &&
-          (event.type === "MIDTERM" || event.type === "FINAL") &&
-          daysUntil(event.dueAt) >= 0,
-      )
-      .sort(
-        (a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime(),
-      );
-    const cleanTarget = target.trim().toLowerCase();
-    return (
-      examEvents.find((event) =>
-        event.title.toLowerCase().includes(cleanTarget),
-      ) ?? examEvents[0]
+  const countdown = useMemo(() => {
+    const { event, fallbackEvent } = pickCountdownEvent(
+      syllabusEvents,
+      course.id,
+      target,
     );
+    return countdownCopy(event, fallbackEvent, target);
   }, [course.id, syllabusEvents, target]);
+
+  const loadSyllabusEvents = async () => {
+    const rows = await apiClient.get<SyllabusEvent[]>("/api/syllabus-events", {
+      params: { courseId: course.id },
+    });
+    setSyllabusEvents(rows);
+  };
 
   const loadGuides = async () => {
     const rows = await apiClient.get<StudyGuideListItem[]>(
@@ -234,6 +344,7 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
       loadGuides(),
       loadGuide(selectedGuideId),
       loadVersions(selectedGuideId),
+      loadSyllabusEvents(),
     ]);
   };
 
@@ -250,11 +361,9 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
   }, [course.id]);
 
   useEffect(() => {
-    apiClient
-      .get<SyllabusEvent[]>("/api/syllabus-events")
-      .then((rows) => setSyllabusEvents(rows))
-      .catch(() => setSyllabusEvents([]));
-  }, []);
+    loadSyllabusEvents().catch(() => setSyllabusEvents([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [course.id]);
 
   useEffect(() => {
     if (!selectedGuideId) {
@@ -586,22 +695,28 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                       </span>
                     )}
                   </div>
-                  <div className="flex max-w-sm items-center gap-4 rounded-xl border border-border bg-card px-4 py-3 shadow-sm">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+                  <div
+                    className={cn(
+                      "flex max-w-sm items-center gap-4 rounded-xl border bg-card px-4 py-3 shadow-sm",
+                      countdown.isPast ? "border-amber-200" : "border-border",
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
+                        countdown.isPast
+                          ? "bg-red-50 text-red-600"
+                          : "bg-amber-50 text-amber-600",
+                      )}
+                    >
                       <CalendarClock className="h-5 w-5" />
                     </div>
                     <div>
                       <p className="text-sm font-semibold leading-snug text-foreground">
-                        {countdownEvent
-                          ? `${countdownEvent.title} is in ${daysUntil(
-                              countdownEvent.dueAt,
-                            )} days`
-                          : `${target || "Exam"} countdown not set`}
+                        {countdown.title}
                       </p>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        {countdownEvent
-                          ? formatEventTime(countdownEvent.dueAt)
-                          : "Add an exam date from the course home page."}
+                        {countdown.subtitle}
                       </p>
                     </div>
                   </div>
