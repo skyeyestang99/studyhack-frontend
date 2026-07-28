@@ -223,6 +223,15 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
     setRevisionConcept(null);
   };
 
+  const refreshCurrentGuideStatus = async () => {
+    if (!selectedGuideId) return;
+    await Promise.all([
+      loadGuides(),
+      loadGuide(selectedGuideId),
+      loadVersions(selectedGuideId),
+    ]);
+  };
+
   useEffect(() => {
     let alive = true;
     setLoading(true);
@@ -262,9 +271,7 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
   useEffect(() => {
     if (!selectedGuideId || !isWorking) return;
     const timer = window.setInterval(() => {
-      loadGuide(selectedGuideId).catch(() => {});
-      loadGuides().catch(() => {});
-      loadVersions(selectedGuideId).catch(() => {});
+      refreshCurrentGuideStatus().catch(() => {});
     }, 2500);
     return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -520,12 +527,16 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => selectedGuideId && loadGuide(selectedGuideId)}
+                    onClick={() =>
+                      refreshCurrentGuideStatus().catch((error) =>
+                        toast.error(errorMessage(error)),
+                      )
+                    }
                     disabled={!selectedGuideId}
                     className="h-8 rounded-lg bg-card"
                   >
                     <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                    Refresh
+                    Refresh status
                   </Button>
                 </div>
               </div>
