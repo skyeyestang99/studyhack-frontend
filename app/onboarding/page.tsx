@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { UsersRound } from "lucide-react";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
@@ -90,6 +91,11 @@ function courseCommunityLabel(count?: number) {
 
 export default function OnboardingPage() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const schoolIdParam = useMemo(
+    () => searchParams.get("schoolId") ?? "",
+    [searchParams],
+  );
   const schools = useEntities<School>("/api/schools");
   const [schoolId, setSchoolId] = useState("");
   const [schoolQuery, setSchoolQuery] = useState("");
@@ -111,6 +117,15 @@ export default function OnboardingPage() {
     schoolQuery.trim().length > 0 &&
     schoolSearch.data.canCreate &&
     schoolId !== NEW_SCHOOL_ID;
+
+  useEffect(() => {
+    if (!schoolIdParam || schoolId || schools.isLoading) return;
+    const school = schools.data.find((item) => item.id === schoolIdParam);
+    if (!school) return;
+
+    setSchoolId(school.id);
+    setSchoolQuery(school.name);
+  }, [schoolId, schoolIdParam, schools.data, schools.isLoading]);
 
   const updateRow = (id: string, patch: Partial<CourseRow>) => {
     setRows((previous) =>

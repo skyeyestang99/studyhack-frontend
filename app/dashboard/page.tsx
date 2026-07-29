@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { BookOpen, FileText, MessageCircleQuestion } from "lucide-react";
+import { BookOpen, FileText, MessageCircleQuestion, Plus } from "lucide-react";
 import type { School, Professor, Course } from "@/types/api";
 import { ExamReminderStrip } from "@/components/dashboard/ExamReminderStrip";
 
@@ -63,6 +63,10 @@ export default function DashboardPage() {
     if (selectedSchoolId === "all") return courses.data;
     return courses.data.filter((course) => course.schoolId === selectedSchoolId);
   }, [courses.data, selectedSchoolId]);
+  const createCourseHref =
+    selectedSchoolId === "all"
+      ? "/onboarding"
+      : `/onboarding?schoolId=${encodeURIComponent(selectedSchoolId)}`;
 
   const handleLeaveCourse = async () => {
     if (!courseToLeave) return;
@@ -144,6 +148,14 @@ export default function DashboardPage() {
               Course workspaces combine upload, materials, and chat.
             </p>
           </div>
+          {courses.data.length > 0 && (
+            <Button asChild>
+              <Link href={createCourseHref}>
+                <Plus className="mr-2 h-4 w-4" />
+                Create course
+              </Link>
+            </Button>
+          )}
         </div>
 
         {courses.data.length === 0 ? (
@@ -177,15 +189,24 @@ export default function DashboardPage() {
                     : "No courses match this school."}
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Choose another school or show all of your courses.
+                  Create a course for this school, choose another school, or
+                  show all of your courses.
                 </p>
               </div>
-              <Button
-                variant="outline"
-                onClick={() => setSelectedSchoolId("all")}
-              >
-                Show all courses
-              </Button>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <Button asChild>
+                  <Link href={createCourseHref}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create course
+                  </Link>
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setSelectedSchoolId("all")}
+                >
+                  Show all courses
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ) : (

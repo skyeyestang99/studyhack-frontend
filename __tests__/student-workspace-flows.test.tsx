@@ -16,6 +16,7 @@ vi.mock("next/navigation", () => ({
     prefetch: vi.fn(),
   }),
   usePathname: () => "/onboarding",
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock("@/components/auth/ProtectedRoute", () => ({
