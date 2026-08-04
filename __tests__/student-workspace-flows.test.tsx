@@ -331,4 +331,41 @@ describe("student workspace flows", () => {
     ).toBeInTheDocument();
   });
 
+  it("closes the upload dialog after all selected files upload successfully", async () => {
+    const onOpenChange = vi.fn();
+    const onSuccess = vi.fn();
+
+    render(
+      <UploadDialog
+        open
+        onOpenChange={onOpenChange}
+        onSuccess={onSuccess}
+        courseId="course-cse101"
+        courseLabel="CSE 101"
+        defaultMaterialType="NOTES"
+      />,
+    );
+
+    const fileInput = screen.getByLabelText("Select a file to upload");
+    fireEvent.change(fileInput, {
+      target: {
+        files: [
+          new File(["notes"], "notes.md", { type: "text/markdown" }),
+          new File(["review"], "review.pdf", { type: "application/pdf" }),
+        ],
+      },
+    });
+    fireEvent.click(screen.getByRole("checkbox"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Upload 2" }));
+
+    await waitFor(
+      () => {
+        expect(onSuccess).toHaveBeenCalledOnce();
+        expect(onOpenChange).toHaveBeenCalledWith(false);
+      },
+      { timeout: 2000 },
+    );
+  });
+
 });

@@ -217,7 +217,10 @@ export function UploadDialog({
     if (!allSucceeded) {
       setError("Some files could not be uploaded. Fix the issue and retry the failed files.");
     }
-    if (allSucceeded) onSuccess();
+    if (allSucceeded) {
+      onSuccess();
+      handleOpenChange(false);
+    }
   };
 
   return (
