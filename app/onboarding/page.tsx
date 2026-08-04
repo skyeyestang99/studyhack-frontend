@@ -201,7 +201,12 @@ export default function OnboardingPage() {
   const hasSemester = Boolean(semester.trim());
   const validRows = rows.filter((row) => row.code.trim() && row.name.trim());
   const hasCourse = validRows.length > 0;
-  const canSave = hasSchool && hasMajor && hasSemester && hasCourse;
+  const rowsMissingProfessor = validRows.filter(
+    (row) => !row.courseId && !row.professorId,
+  );
+  const hasRequiredProfessors = rowsMissingProfessor.length === 0;
+  const canSave =
+    hasSchool && hasMajor && hasSemester && hasCourse && hasRequiredProfessors;
 
   const handleSave = async () => {
     setAttemptedSave(true);
@@ -420,6 +425,13 @@ export default function OnboardingPage() {
                 schoolLabel={newSchool || schoolQuery}
                 updateRow={updateRow}
                 selectProfessor={selectProfessor}
+                showProfessorError={
+                  attemptedSave &&
+                  Boolean(row.code.trim()) &&
+                  Boolean(row.name.trim()) &&
+                  !row.courseId &&
+                  !row.professorId
+                }
                 requestCreateProfessor={(name) =>
                   setPendingCreate({
                     kind: "professor",
@@ -448,6 +460,7 @@ export default function OnboardingPage() {
                     !hasMajor && "major",
                     !hasSemester && "semester",
                     !hasCourse && "at least one course code and name",
+                    !hasRequiredProfessors && "professor for each new course",
                   ]
                     .filter(Boolean)
                     .join(", ")}
@@ -510,6 +523,7 @@ interface CourseRowEditorProps {
   schoolLabel: string;
   updateRow: (id: string, patch: Partial<CourseRow>) => void;
   selectProfessor: (rowId: string, professor: Professor) => void;
+  showProfessorError: boolean;
   requestCreateProfessor: (name: string) => void;
 }
 
@@ -520,6 +534,7 @@ function CourseRowEditor({
   schoolLabel,
   updateRow,
   selectProfessor,
+  showProfessorError,
   requestCreateProfessor,
 }: CourseRowEditorProps) {
   const [coursePickerOpen, setCoursePickerOpen] = useState(false);
@@ -704,6 +719,7 @@ function CourseRowEditor({
           placeholder={hasSchool ? "Search professor" : "Select a school first"}
           value={row.professorQuery}
           disabled={!hasSchool}
+          aria-invalid={showProfessorError}
           onChange={(event) =>
             updateRow(row.id, {
               professorQuery: event.target.value,
@@ -761,6 +777,11 @@ function CourseRowEditor({
             <span className="font-medium text-foreground">
               {row.newProfessor}
             </span>
+          </p>
+        )}
+        {showProfessorError && (
+          <p className="text-xs text-destructive">
+            Select or create a professor for this course.
           </p>
         )}
       </div>
