@@ -21,6 +21,14 @@ interface MockCourse extends CourseInput {
   id: string;
 }
 
+const mockProfessor = {
+  id: "prof-northbridge",
+  name: "Taylor Northbridge",
+  department: "Computer Science",
+  schoolId: "school-uci",
+  createdAt: "2026-01-02T00:00:00.000Z",
+};
+
 const { apiGet, apiPost, searchParamsMock } = vi.hoisted(() => ({
   apiGet: vi.fn(),
   apiPost: vi.fn(),
@@ -91,6 +99,9 @@ function createMockApi(existingCourses: MockCourse[] = []) {
       if (endpoint === "/api/schools") {
         return [];
       }
+      if (endpoint === "/api/professors") {
+        return { matches: [], canCreate: true, threshold: 0.65 };
+      }
       return { matches: [], canCreate: true, threshold: 0.65 };
     },
   );
@@ -158,6 +169,21 @@ async function completeOnboarding(courses: CourseInput[]) {
     fireEvent.change(nameInputs[index], { target: { value: course.name } });
   });
 
+  const professorInputs = screen.getAllByLabelText("Professor search");
+  for (let index = 0; index < professorInputs.length; index += 1) {
+    const professorInput = professorInputs[index];
+    const professorName = `Professor ${index + 1}`;
+    fireEvent.change(professorInput, {
+      target: { value: professorName },
+    });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: `Create new "${professorName}"`,
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Confirm create" }));
+  }
+
   fireEvent.click(screen.getByRole("button", { name: "Save and continue" }));
   await screen.findByText(/Setup saved\. Continue/);
 }
@@ -187,14 +213,14 @@ describe("onboarding and enrollment", () => {
           id: undefined,
           code: "CSE 101",
           name: "Design and Analysis of Algorithms",
-          professor: undefined,
+          professor: { name: "Professor 1", confirmed: true },
           confirmed: true,
         },
         {
           id: undefined,
           code: "MATH 20C",
           name: "Calculus and Analytic Geometry",
-          professor: undefined,
+          professor: { name: "Professor 2", confirmed: true },
           confirmed: true,
         },
       ],
@@ -247,8 +273,18 @@ describe("onboarding and enrollment", () => {
             },
           ];
         }
+        if (endpoint === "/api/schools/school-uci/courses" && options?.params?.q) {
+          return { matches: [], canCreate: true, threshold: 0.65 };
+        }
         if (endpoint === "/api/schools/school-uci/courses") return [];
-        if (endpoint === "/api/schools/school-uci/professors") return [];
+        if (endpoint === "/api/schools/school-uci/professors" && options?.params?.q) {
+          return {
+            matches: [{ item: mockProfessor, score: 1, strong: true }],
+            canCreate: false,
+            threshold: 0.65,
+          };
+        }
+        if (endpoint === "/api/schools/school-uci/professors") return [mockProfessor];
         return { matches: [], canCreate: true, threshold: 0.65 };
       },
     );
@@ -268,6 +304,12 @@ describe("onboarding and enrollment", () => {
     fireEvent.change(
       screen.getByPlaceholderText("Design and Analysis of Algorithms"),
       { target: { value: "Intermediate Programming" } },
+    );
+    fireEvent.change(screen.getByLabelText("Professor search"), {
+      target: { value: "Taylor Northbridge" },
+    });
+    fireEvent.click(
+      await screen.findByRole("option", { name: /Taylor Northbridge/ }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Save and continue" }));
 

@@ -558,9 +558,10 @@ function CourseRowEditor({
     undefined,
     hasSchool && Boolean(selectedSchoolId),
   );
-  const professorMatches = professorSearch.data.matches;
+  const courseMatches = courseSearch.data.matches ?? [];
+  const professorMatches = professorSearch.data.matches ?? [];
   const visibleCourseSuggestions = courseSearchQuery
-    ? courseSearch.data.matches.map(({ item, strong }) => ({ course: item, strong }))
+    ? courseMatches.map(({ item, strong }) => ({ course: item, strong }))
     : schoolCourses.data.slice(0, 8).map((course) => ({ course, strong: false }));
   const canOfferCourseCreation =
     hasSchool &&
@@ -704,7 +705,7 @@ function CourseRowEditor({
           courseSearchQuery &&
           courseSearch.debouncedQuery &&
           !courseSearch.isLoading &&
-          courseSearch.data.matches.length === 0 && (
+          courseMatches.length === 0 && (
             <div className="rounded-md border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
               <span className="font-medium text-foreground">
                 Ready for a new course hub.
