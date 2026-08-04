@@ -29,6 +29,7 @@ const materialTypeFields: FieldConfig[] = [
     type: "select",
     required: true,
     options: [
+      { value: "SYLLABUS", label: "Syllabus / Schedule" },
       { value: "HOMEWORK", label: "Homework" },
       { value: "PPT", label: "Lecture Slides" },
       { value: "EXAM", label: "Exam" },
@@ -56,6 +57,9 @@ export function CourseMaterialsPanel({
   const [isDeleting, setIsDeleting] = useState(false);
   const [previewTarget, setPreviewTarget] =
     useState<StudyMaterialResponse | null>(null);
+  const [retryingMaterialId, setRetryingMaterialId] = useState<string | null>(
+    null,
+  );
 
   const fetchMaterials = useCallback(async () => {
     try {
@@ -123,6 +127,22 @@ export function CourseMaterialsPanel({
     }
   };
 
+  const handleRetry = async (material: StudyMaterialResponse) => {
+    setRetryingMaterialId(material.id);
+    try {
+      await apiClient.post<StudyMaterialResponse>(
+        `/api/materials/${material.id}/retry`,
+      );
+      toast.success("Material processing restarted");
+      fetchMaterials();
+    } catch (err) {
+      const apiError = err as ApiError;
+      toast.error(apiError.message || "Failed to retry material");
+    } finally {
+      setRetryingMaterialId(null);
+    }
+  };
+
   const readyCount = materials.filter((m) => m.status === "READY").length;
   const processingCount = materials.filter(
     (m) => m.status === "VALIDATING",
@@ -157,6 +177,8 @@ export function CourseMaterialsPanel({
           onEdit={setEditTarget}
           onDelete={setDeleteTarget}
           onPreview={setPreviewTarget}
+          onRetry={handleRetry}
+          retryingMaterialId={retryingMaterialId}
         />
       </CardContent>
 
@@ -166,6 +188,7 @@ export function CourseMaterialsPanel({
         onSuccess={fetchMaterials}
         courseId={course.id}
         courseLabel={`${course.code} — ${course.name}`}
+        defaultMaterialType={materialType}
       />
 
       <EntityModal

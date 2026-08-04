@@ -5,7 +5,7 @@ export const metadata = {
 export default function TermsPage() {
   return (
     <main className="mx-auto max-w-2xl px-4 py-10">
-      <div className="prose prose-sm max-w-none dark:prose-invert">
+      <div className="prose prose-sm max-w-none">
         <h1>Terms of Service &amp; Privacy — Closed Beta</h1>
         <p className="text-muted-foreground">
           StudyHack is in closed beta. This is a placeholder policy for beta

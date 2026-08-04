@@ -21,9 +21,18 @@ interface MockCourse extends CourseInput {
   id: string;
 }
 
-const { apiGet, apiPost } = vi.hoisted(() => ({
+const mockProfessor = {
+  id: "prof-northbridge",
+  name: "Taylor Northbridge",
+  department: "Computer Science",
+  schoolId: "school-uci",
+  createdAt: "2026-01-02T00:00:00.000Z",
+};
+
+const { apiGet, apiPost, searchParamsMock } = vi.hoisted(() => ({
   apiGet: vi.fn(),
   apiPost: vi.fn(),
+  searchParamsMock: vi.fn(() => new URLSearchParams()),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -36,6 +45,7 @@ vi.mock("next/navigation", () => ({
     prefetch: vi.fn(),
   }),
   usePathname: () => "/onboarding",
+  useSearchParams: searchParamsMock,
 }));
 
 vi.mock("@/components/auth/ProtectedRoute", () => ({
@@ -88,6 +98,9 @@ function createMockApi(existingCourses: MockCourse[] = []) {
       }
       if (endpoint === "/api/schools") {
         return [];
+      }
+      if (endpoint === "/api/professors") {
+        return { matches: [], canCreate: true, threshold: 0.65 };
       }
       return { matches: [], canCreate: true, threshold: 0.65 };
     },
@@ -156,6 +169,21 @@ async function completeOnboarding(courses: CourseInput[]) {
     fireEvent.change(nameInputs[index], { target: { value: course.name } });
   });
 
+  const professorInputs = screen.getAllByLabelText("Professor search");
+  for (let index = 0; index < professorInputs.length; index += 1) {
+    const professorInput = professorInputs[index];
+    const professorName = `Professor ${index + 1}`;
+    fireEvent.change(professorInput, {
+      target: { value: professorName },
+    });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: `Create new "${professorName}"`,
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Confirm create" }));
+  }
+
   fireEvent.click(screen.getByRole("button", { name: "Save and continue" }));
   await screen.findByText(/Setup saved\. Continue/);
 }
@@ -165,6 +193,7 @@ describe("onboarding and enrollment", () => {
     localStorage.clear();
     apiGet.mockReset();
     apiPost.mockReset();
+    searchParamsMock.mockReturnValue(new URLSearchParams());
     apiGet.mockResolvedValue([]);
   });
 
@@ -184,14 +213,14 @@ describe("onboarding and enrollment", () => {
           id: undefined,
           code: "CSE 101",
           name: "Design and Analysis of Algorithms",
-          professor: undefined,
+          professor: { name: "Professor 1", confirmed: true },
           confirmed: true,
         },
         {
           id: undefined,
           code: "MATH 20C",
           name: "Calculus and Analytic Geometry",
-          professor: undefined,
+          professor: { name: "Professor 2", confirmed: true },
           confirmed: true,
         },
       ],
@@ -222,6 +251,74 @@ describe("onboarding and enrollment", () => {
     expect(mockApi.courses.get("CSE101")).toBe(existingCourse);
     expect(mockApi.enrollments).toEqual(
       new Set(["user-1:course-existing"]),
+    );
+  });
+
+  it("prefills an existing school from the dashboard create-course link", async () => {
+    searchParamsMock.mockReturnValue(new URLSearchParams("schoolId=school-uci"));
+    apiGet.mockImplementation(
+      async (endpoint: string, options?: { params?: { q?: string } }) => {
+        if (endpoint === "/api/schools" && options?.params?.q) {
+          return { matches: [], canCreate: true, threshold: 0.65 };
+        }
+        if (endpoint === "/api/schools") {
+          return [
+            {
+              id: "school-uci",
+              name: "University of California, Irvine",
+              shortName: "UCI",
+              aliases: [],
+              location: "Irvine, CA",
+              createdAt: "2026-01-01T00:00:00.000Z",
+            },
+          ];
+        }
+        if (endpoint === "/api/schools/school-uci/courses" && options?.params?.q) {
+          return { matches: [], canCreate: true, threshold: 0.65 };
+        }
+        if (endpoint === "/api/schools/school-uci/courses") return [];
+        if (endpoint === "/api/schools/school-uci/professors" && options?.params?.q) {
+          return {
+            matches: [{ item: mockProfessor, score: 1, strong: true }],
+            canCreate: false,
+            threshold: 0.65,
+          };
+        }
+        if (endpoint === "/api/schools/school-uci/professors") return [mockProfessor];
+        return { matches: [], canCreate: true, threshold: 0.65 };
+      },
+    );
+    apiPost.mockResolvedValue({ schoolId: "school-uci", enrolled: [] });
+
+    render(<OnboardingPage />);
+
+    expect(
+      await screen.findByText("University of California, Irvine"),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText("Type your major, e.g. Computer Science"), {
+      target: { value: "Computer Science" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("CSE 101"), {
+      target: { value: "ICS 33" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText("Design and Analysis of Algorithms"),
+      { target: { value: "Intermediate Programming" } },
+    );
+    fireEvent.change(screen.getByLabelText("Professor search"), {
+      target: { value: "Taylor Northbridge" },
+    });
+    fireEvent.click(
+      await screen.findByRole("option", { name: /Taylor Northbridge/ }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save and continue" }));
+
+    await waitFor(() => expect(apiPost).toHaveBeenCalledOnce());
+    expect(apiPost).toHaveBeenCalledWith(
+      "/api/onboarding",
+      expect.objectContaining({
+        school: { id: "school-uci" },
+      }),
     );
   });
 });

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { UsersRound } from "lucide-react";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
@@ -90,6 +91,11 @@ function courseCommunityLabel(count?: number) {
 
 export default function OnboardingPage() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const schoolIdParam = useMemo(
+    () => searchParams.get("schoolId") ?? "",
+    [searchParams],
+  );
   const schools = useEntities<School>("/api/schools");
   const [schoolId, setSchoolId] = useState("");
   const [schoolQuery, setSchoolQuery] = useState("");
@@ -111,6 +117,15 @@ export default function OnboardingPage() {
     schoolQuery.trim().length > 0 &&
     schoolSearch.data.canCreate &&
     schoolId !== NEW_SCHOOL_ID;
+
+  useEffect(() => {
+    if (!schoolIdParam || schoolId || schools.isLoading) return;
+    const school = schools.data.find((item) => item.id === schoolIdParam);
+    if (!school) return;
+
+    setSchoolId(school.id);
+    setSchoolQuery(school.name);
+  }, [schoolId, schoolIdParam, schools.data, schools.isLoading]);
 
   const updateRow = (id: string, patch: Partial<CourseRow>) => {
     setRows((previous) =>
@@ -186,7 +201,12 @@ export default function OnboardingPage() {
   const hasSemester = Boolean(semester.trim());
   const validRows = rows.filter((row) => row.code.trim() && row.name.trim());
   const hasCourse = validRows.length > 0;
-  const canSave = hasSchool && hasMajor && hasSemester && hasCourse;
+  const rowsMissingProfessor = validRows.filter(
+    (row) => !row.courseId && !row.professorId,
+  );
+  const hasRequiredProfessors = rowsMissingProfessor.length === 0;
+  const canSave =
+    hasSchool && hasMajor && hasSemester && hasCourse && hasRequiredProfessors;
 
   const handleSave = async () => {
     setAttemptedSave(true);
@@ -405,6 +425,13 @@ export default function OnboardingPage() {
                 schoolLabel={newSchool || schoolQuery}
                 updateRow={updateRow}
                 selectProfessor={selectProfessor}
+                showProfessorError={
+                  attemptedSave &&
+                  Boolean(row.code.trim()) &&
+                  Boolean(row.name.trim()) &&
+                  !row.courseId &&
+                  !row.professorId
+                }
                 requestCreateProfessor={(name) =>
                   setPendingCreate({
                     kind: "professor",
@@ -433,6 +460,7 @@ export default function OnboardingPage() {
                     !hasMajor && "major",
                     !hasSemester && "semester",
                     !hasCourse && "at least one course code and name",
+                    !hasRequiredProfessors && "professor for each new course",
                   ]
                     .filter(Boolean)
                     .join(", ")}
@@ -495,6 +523,7 @@ interface CourseRowEditorProps {
   schoolLabel: string;
   updateRow: (id: string, patch: Partial<CourseRow>) => void;
   selectProfessor: (rowId: string, professor: Professor) => void;
+  showProfessorError: boolean;
   requestCreateProfessor: (name: string) => void;
 }
 
@@ -505,6 +534,7 @@ function CourseRowEditor({
   schoolLabel,
   updateRow,
   selectProfessor,
+  showProfessorError,
   requestCreateProfessor,
 }: CourseRowEditorProps) {
   const [coursePickerOpen, setCoursePickerOpen] = useState(false);
@@ -528,9 +558,10 @@ function CourseRowEditor({
     undefined,
     hasSchool && Boolean(selectedSchoolId),
   );
-  const professorMatches = professorSearch.data.matches;
+  const courseMatches = courseSearch.data.matches ?? [];
+  const professorMatches = professorSearch.data.matches ?? [];
   const visibleCourseSuggestions = courseSearchQuery
-    ? courseSearch.data.matches.map(({ item, strong }) => ({ course: item, strong }))
+    ? courseMatches.map(({ item, strong }) => ({ course: item, strong }))
     : schoolCourses.data.slice(0, 8).map((course) => ({ course, strong: false }));
   const canOfferCourseCreation =
     hasSchool &&
@@ -674,7 +705,7 @@ function CourseRowEditor({
           courseSearchQuery &&
           courseSearch.debouncedQuery &&
           !courseSearch.isLoading &&
-          courseSearch.data.matches.length === 0 && (
+          courseMatches.length === 0 && (
             <div className="rounded-md border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
               <span className="font-medium text-foreground">
                 Ready for a new course hub.
@@ -689,6 +720,7 @@ function CourseRowEditor({
           placeholder={hasSchool ? "Search professor" : "Select a school first"}
           value={row.professorQuery}
           disabled={!hasSchool}
+          aria-invalid={showProfessorError}
           onChange={(event) =>
             updateRow(row.id, {
               professorQuery: event.target.value,
@@ -746,6 +778,11 @@ function CourseRowEditor({
             <span className="font-medium text-foreground">
               {row.newProfessor}
             </span>
+          </p>
+        )}
+        {showProfessorError && (
+          <p className="text-xs text-destructive">
+            Select or create a professor for this course.
           </p>
         )}
       </div>
