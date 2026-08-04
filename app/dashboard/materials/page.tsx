@@ -49,6 +49,9 @@ export default function MaterialsPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [previewTarget, setPreviewTarget] =
     useState<StudyMaterialResponse | null>(null);
+  const [retryingMaterialId, setRetryingMaterialId] = useState<string | null>(
+    null,
+  );
 
   const fetchMaterials = useCallback(async () => {
     try {
@@ -111,6 +114,22 @@ export default function MaterialsPage() {
     }
   };
 
+  const handleRetry = async (material: StudyMaterialResponse) => {
+    setRetryingMaterialId(material.id);
+    try {
+      await apiClient.post<StudyMaterialResponse>(
+        `/api/materials/${material.id}/retry`,
+      );
+      toast.success("Material processing restarted");
+      fetchMaterials();
+    } catch (err) {
+      const apiError = err as ApiError;
+      toast.error(apiError.message || "Failed to retry material");
+    } finally {
+      setRetryingMaterialId(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -127,6 +146,8 @@ export default function MaterialsPage() {
         onEdit={setEditTarget}
         onDelete={setDeleteTarget}
         onPreview={setPreviewTarget}
+        onRetry={handleRetry}
+        retryingMaterialId={retryingMaterialId}
       />
 
       <UploadDialog

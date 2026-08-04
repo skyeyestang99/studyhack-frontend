@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Fragment, useState } from "react";
-import { Eye, Pencil, Trash2 } from "lucide-react";
+import { Eye, Pencil, RotateCcw, Trash2 } from "lucide-react";
 
 interface MaterialListProps {
   materials: StudyMaterialResponse[];
@@ -21,6 +21,8 @@ interface MaterialListProps {
   onEdit?: (material: StudyMaterialResponse) => void;
   onDelete?: (material: StudyMaterialResponse) => void;
   onPreview?: (material: StudyMaterialResponse) => void;
+  onRetry?: (material: StudyMaterialResponse) => void;
+  retryingMaterialId?: string | null;
 }
 
 const statusConfig: Record<string, { label: string; className: string }> = {
@@ -58,6 +60,8 @@ export function MaterialList({
   onEdit,
   onDelete,
   onPreview,
+  onRetry,
+  retryingMaterialId,
 }: MaterialListProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -96,6 +100,8 @@ export function MaterialList({
         {materials.map((m) => {
           const cfg = statusConfig[m.status] ?? FALLBACK_STATUS;
           const canPreview = m.status === "READY" && Boolean(onPreview);
+          const canRetry = m.status === "FAILED" && Boolean(onRetry);
+          const isRetrying = retryingMaterialId === m.id;
           const hasDetail =
             (m.status === "REJECTED" && Boolean(m.rejectionReason)) ||
             m.status === "FAILED";
@@ -141,6 +147,21 @@ export function MaterialList({
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
+                    {canRetry && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={isRetrying}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRetry?.(m);
+                        }}
+                        aria-label={`Retry ${m.fileName}`}
+                      >
+                        <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                        {isRetrying ? "Retrying" : "Retry"}
+                      </Button>
+                    )}
                     {onPreview && (
                       <Button
                         variant="ghost"
@@ -191,7 +212,9 @@ export function MaterialList({
                     className="bg-red-50 text-sm text-red-700"
                   >
                     {m.status === "FAILED"
-                      ? "We couldn't process this file, so it isn't available to the tutor. Delete it and re-upload a clearer PDF or a supported format (PDF, DOCX, PPTX, TXT, MD)."
+                      ? m.embeddingError
+                        ? `Processing failed: ${m.embeddingError}`
+                        : "We couldn't process this file, so it isn't available to the tutor. Retry processing or delete it and re-upload a clearer PDF or a supported format (PDF, DOCX, PPTX, TXT, MD)."
                       : `Rejection reason: ${m.rejectionReason}`}
                   </TableCell>
                 </TableRow>

@@ -208,6 +208,9 @@ export interface StudyMaterialResponse {
   downloadUrl?: string | null;
   contentType?: string | null;
   rejectionReason: string | null;
+  embeddingError?: string | null;
+  embeddingAttempts?: number;
+  lastAttemptedAt?: string | null;
   createdAt: string;
 }
 
