@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEntities } from "@/hooks/useEntities";
@@ -52,6 +52,25 @@ export default function DashboardPage() {
     schools.data.forEach((school) => map.set(school.id, school));
     return map;
   }, [schools.data]);
+
+  const courseSchoolIds = useMemo(
+    () => new Set(courses.data.map((course) => course.schoolId)),
+    [courses.data],
+  );
+
+  const enrolledSchools = useMemo(
+    () => schools.data.filter((school) => courseSchoolIds.has(school.id)),
+    [courseSchoolIds, schools.data],
+  );
+
+  useEffect(() => {
+    if (
+      selectedSchoolId !== "all" &&
+      !courseSchoolIds.has(selectedSchoolId)
+    ) {
+      setSelectedSchoolId("all");
+    }
+  }, [courseSchoolIds, selectedSchoolId]);
 
   const professorMap = useMemo(() => {
     const map = new Map<string, Professor>();
@@ -125,7 +144,7 @@ export default function DashboardPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Schools</SelectItem>
-                {schools.data.map((school) => (
+                {enrolledSchools.map((school) => (
                   <SelectItem key={school.id} value={school.id}>
                     {school.name}
                   </SelectItem>
