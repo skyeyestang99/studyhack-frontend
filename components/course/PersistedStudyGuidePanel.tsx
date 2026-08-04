@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   BookOpen,
@@ -122,6 +122,8 @@ function formatEventTime(date: string) {
 }
 
 const examTypes = new Set(["MIDTERM", "FINAL"]);
+const GUIDE_STATUS_POLL_INTERVAL_MS = 2500;
+const GUIDE_STATUS_MAX_POLL_ATTEMPTS = 90;
 
 function preferredExamTypes(target: string) {
   const normalized = target.toLowerCase();
@@ -264,9 +266,21 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
     useState<StudyGuideConcept | null>(null);
   const [revisionInstruction, setRevisionInstruction] = useState("");
   const [revisionRunning, setRevisionRunning] = useState(false);
+  const [guidePollingTimedOut, setGuidePollingTimedOut] = useState(false);
+  const [hasNewVersionAvailable, setHasNewVersionAvailable] = useState(false);
+  const guidePollAttemptsRef = useRef(0);
+  const activeInteractionRef = useRef(false);
+  const guideStatusRef = useRef<StudyGuide["status"] | null>(null);
 
   const currentVersion = viewingVersion ?? guide?.currentVersion ?? null;
+  const guideId = guide?.id ?? null;
+  const guideStatus = guide?.status ?? null;
   const isWorking = guide?.status === "queued" || guide?.status === "generating";
+  const hasActiveInteraction =
+    viewingVersion !== null ||
+    editingGuide ||
+    editConcept !== null ||
+    revisionConcept !== null;
   const isViewingCurrentVersion =
     !!currentVersion && currentVersion.id === guide?.currentVersionId && !viewingVersion;
 
@@ -312,12 +326,18 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
     }
   };
 
-  const loadGuide = async (guideId: string) => {
+  const loadGuide = async (
+    guideId: string,
+    options: { preserveViewState?: boolean } = {},
+  ) => {
     const next = await apiClient.get<StudyGuide>(`/api/study-guides/${guideId}`);
     setGuide(next);
-    setViewingVersion(null);
-    setEditingGuide(false);
-    setEditConcept(null);
+    if (!options.preserveViewState) {
+      setViewingVersion(null);
+      setEditingGuide(false);
+      setEditConcept(null);
+    }
+    return next;
   };
 
   const loadVersions = async (guideId: string) => {
@@ -338,14 +358,32 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
     setRevisionConcept(null);
   };
 
+  const viewLatestGuide = () => {
+    setViewingVersion(null);
+    setEditingGuide(false);
+    setEditConcept(null);
+    setRevisionConcept(null);
+    setHasNewVersionAvailable(false);
+  };
+
   const refreshCurrentGuideStatus = async () => {
     if (!selectedGuideId) return;
-    await Promise.all([
+    const [, nextGuide] = await Promise.all([
       loadGuides(),
-      loadGuide(selectedGuideId),
+      loadGuide(selectedGuideId, { preserveViewState: true }),
       loadVersions(selectedGuideId),
       loadSyllabusEvents(),
     ]);
+    const becameReady =
+      guideStatusRef.current !== "ready" && nextGuide.status === "ready";
+    guideStatusRef.current = nextGuide.status;
+    if (!becameReady) return;
+
+    if (activeInteractionRef.current) {
+      setHasNewVersionAvailable(true);
+    } else {
+      viewLatestGuide();
+    }
   };
 
   useEffect(() => {
@@ -370,6 +408,7 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
       setGuide(null);
       setVersions([]);
       setViewingVersion(null);
+      setHasNewVersionAvailable(false);
       return;
     }
     let alive = true;
@@ -383,13 +422,41 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
   }, [selectedGuideId]);
 
   useEffect(() => {
-    if (!selectedGuideId || !isWorking) return;
+    guidePollAttemptsRef.current = 0;
+    guideStatusRef.current = null;
+    setGuidePollingTimedOut(false);
+    setHasNewVersionAvailable(false);
+  }, [selectedGuideId]);
+
+  useEffect(() => {
+    activeInteractionRef.current = hasActiveInteraction;
+  }, [hasActiveInteraction]);
+
+  useEffect(() => {
+    if (guideStatus) guideStatusRef.current = guideStatus;
+  }, [guideId, guideStatus]);
+
+  useEffect(() => {
+    if (!isWorking) {
+      guidePollAttemptsRef.current = 0;
+      setGuidePollingTimedOut(false);
+    }
+  }, [isWorking]);
+
+  useEffect(() => {
+    if (!selectedGuideId || !isWorking || guidePollingTimedOut) return;
     const timer = window.setInterval(() => {
+      guidePollAttemptsRef.current += 1;
+      if (guidePollAttemptsRef.current > GUIDE_STATUS_MAX_POLL_ATTEMPTS) {
+        setGuidePollingTimedOut(true);
+        toast.error("Study guide generation is taking longer than expected.");
+        return;
+      }
       refreshCurrentGuideStatus().catch(() => {});
-    }, 2500);
+    }, GUIDE_STATUS_POLL_INTERVAL_MS);
     return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedGuideId, isWorking]);
+  }, [selectedGuideId, isWorking, guidePollingTimedOut]);
 
   const createGuide = async () => {
     const cleanTarget = target.trim();
@@ -805,9 +872,32 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                       Generating from course materials
                     </p>
                     <p className="mt-1 text-xs text-amber-800">
-                      This guide is durable. You can leave the page and reopen it later.
+                      {guidePollingTimedOut
+                        ? "Automatic refresh paused after several attempts. Use Refresh status to check again."
+                        : "This guide is durable. You can leave the page and reopen it later."}
                     </p>
                   </div>
+                </div>
+              )}
+
+              {hasNewVersionAvailable && (
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-emerald-900">
+                      New version available
+                    </p>
+                    <p className="mt-1 text-xs text-emerald-800">
+                      Your current view was preserved while generation finished.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="shrink-0 bg-emerald-600 text-white hover:bg-emerald-700"
+                    onClick={viewLatestGuide}
+                  >
+                    View latest
+                  </Button>
                 </div>
               )}
 
