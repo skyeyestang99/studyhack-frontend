@@ -106,7 +106,7 @@ describe("dashboard enrollment states", () => {
     expect(screen.queryByText("No courses match this school.")).not.toBeInTheDocument();
   });
 
-  it("links to course creation with the selected school prefilled", () => {
+  it("limits the school filter to schools with enrolled courses", () => {
     useEntitiesMock.mockImplementation((endpoint: string) => {
       if (endpoint === "/api/schools") {
         return {
@@ -167,18 +167,20 @@ describe("dashboard enrollment states", () => {
 
     render(<DashboardPage />);
 
+    expect(screen.getByRole("option", { name: "UC San Diego" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "University of California, Irvine" }),
+    ).not.toBeInTheDocument();
+
     fireEvent.change(screen.getByLabelText("Filter by school"), {
-      target: { value: "school-uci" },
+      target: { value: "school-ucsd" },
     });
 
-    expect(screen.getByText("No courses match this school.")).toBeInTheDocument();
-    expect(
-      screen.getByText(/Create a course for this school/i),
-    ).toBeInTheDocument();
-    screen.getAllByRole("link", { name: /Create course/i }).forEach((link) => {
-      expect(link).toHaveAttribute("href", "/onboarding?schoolId=school-uci");
-    });
-    expect(screen.getByRole("button", { name: "Show all courses" })).toBeInTheDocument();
+    expect(screen.getByText("Differential Equations")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Create course/i })).toHaveAttribute(
+      "href",
+      "/onboarding?schoolId=school-ucsd",
+    );
   });
 
   it("shows course creation when the selected school already has courses", () => {
