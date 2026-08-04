@@ -10,6 +10,7 @@ import type {
   StudyGuideVersion,
   StudyGuideVersionMeta,
 } from "@/types/api";
+import type { SyllabusEvent } from "@/lib/mock-data";
 
 const { apiGet, apiPost, toastError } = vi.hoisted(() => ({
   apiGet: vi.fn(),
@@ -248,12 +249,15 @@ function mockStudyGuideApi(
     includeSecondGuide?: boolean;
     guideSequence?: StudyGuide[];
     versionsSequence?: StudyGuideVersionMeta[][];
+    guides?: StudyGuideListItem[];
+    syllabusEvents?: SyllabusEvent[];
   } = {},
 ) {
   let guideCallIndex = 0;
   let versionsCallIndex = 0;
   apiGet.mockImplementation(async (endpoint: string) => {
     if (endpoint === `/api/courses/${course.id}/study-guides`) {
+      if (options.guides) return options.guides;
       return options.includeSecondGuide
         ? [guideListItem, secondGuideListItem]
         : [guideListItem];
@@ -275,7 +279,7 @@ function mockStudyGuideApi(
     if (endpoint === "/api/study-guides/guide-1/versions/version-history") {
       return historicalVersion;
     }
-    if (endpoint === "/api/syllabus-events") return [];
+    if (endpoint === "/api/syllabus-events") return options.syllabusEvents ?? [];
     throw new Error(`Unexpected endpoint: ${endpoint}`);
   });
   apiPost.mockResolvedValue({
@@ -394,6 +398,64 @@ describe("PersistedStudyGuidePanel polling", () => {
 
     expect(guideFetchCount("guide-2")).toBeGreaterThan(1);
     expect(guideFetchCount("guide-1")).toBe(firstGuideCountAfterTimeout);
+  });
+
+  it("syncs the generate input to the selected guide target", async () => {
+    const quizGuide: StudyGuide = {
+      ...readyGuide,
+      target: "Week 1 Quiz",
+      status: "ready",
+    };
+    const quizGuideListItem: StudyGuideListItem = {
+      ...guideListItem,
+      target: "Week 1 Quiz",
+      status: "ready",
+      title: "Week 1 Quiz Study Guide",
+    };
+    mockStudyGuideApi({
+      guides: [quizGuideListItem],
+      guideSequence: [quizGuide],
+    });
+
+    render(<PersistedStudyGuidePanel course={course} />);
+    await flushAsyncUpdates();
+
+    expect(screen.getByDisplayValue("Week 1 Quiz")).toBeInTheDocument();
+  });
+
+  it("falls back to a course-level next exam countdown when the guide target has no matching exam", async () => {
+    const quizGuide: StudyGuide = {
+      ...readyGuide,
+      target: "Week 1 Quiz",
+      status: "ready",
+    };
+    const quizGuideListItem: StudyGuideListItem = {
+      ...guideListItem,
+      target: "Week 1 Quiz",
+      status: "ready",
+      title: "Week 1 Quiz Study Guide",
+    };
+    const future = new Date(Date.now() + 7 * 86_400_000).toISOString();
+    mockStudyGuideApi({
+      guides: [quizGuideListItem],
+      guideSequence: [quizGuide],
+      syllabusEvents: [
+        {
+          id: "event-midterm",
+          courseId: course.id,
+          title: "Midterm 1",
+          type: "MIDTERM",
+          dueAt: future,
+        },
+      ],
+    });
+
+    render(<PersistedStudyGuidePanel course={course} />);
+    await flushAsyncUpdates();
+
+    expect(screen.getByText("Next exam countdown")).toBeInTheDocument();
+    expect(screen.getByText(/Midterm 1/)).toBeInTheDocument();
+    expect(screen.queryByText(/Week 1 Quiz countdown/)).not.toBeInTheDocument();
   });
 
   it("does not carry the old guide timer or counter into a different selected guide", async () => {

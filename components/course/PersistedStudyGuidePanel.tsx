@@ -216,21 +216,21 @@ function countdownCopy(
   if (fallbackEvent) {
     const days = daysUntil(fallbackEvent.dueAt);
     return {
-      title: `${target || "Exam"} date not found`,
+      title: "Next exam countdown",
       subtitle:
         days >= 0
-          ? `Closest parsed exam: ${fallbackEvent.title} · ${formatEventTime(
+          ? `${fallbackEvent.title} · ${formatEventTime(
               fallbackEvent.dueAt,
             )}`
-          : `Past exam found: ${fallbackEvent.title} · ${formatEventTime(
+          : `${fallbackEvent.title} · ${formatEventTime(
               fallbackEvent.dueAt,
-            )}`,
+            )} · already passed`,
       isPast: days < 0,
     };
   }
 
   return {
-    title: `${target || "Exam"} countdown not set`,
+    title: "Next exam countdown not set",
     subtitle: "Upload a syllabus or add an exam date from the course home page.",
     isPast: false,
   };
@@ -435,6 +435,12 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
   useEffect(() => {
     if (guideStatus) guideStatusRef.current = guideStatus;
   }, [guideId, guideStatus]);
+
+  useEffect(() => {
+    if (guide?.target) {
+      setTarget(guide.target);
+    }
+  }, [guide?.id, guide?.target]);
 
   useEffect(() => {
     if (!isWorking) {
@@ -750,21 +756,22 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                   </Button>
                 </div>
               </div>
-              <div className="grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(360px,0.8fr)] xl:items-start">
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2">
-                    <h1 className="text-2xl font-semibold leading-tight tracking-tight">
-                      Study Guide
-                    </h1>
-                    {currentVersion && !isViewingCurrentVersion && (
-                      <span className="rounded border border-violet-200 bg-violet-50 px-2 py-1 text-[10px] font-medium text-violet-700">
-                        Historical
-                      </span>
-                    )}
-                  </div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-semibold leading-tight tracking-tight">
+                  Study Guide
+                </h1>
+                {currentVersion && !isViewingCurrentVersion && (
+                  <span className="rounded border border-violet-200 bg-violet-50 px-2 py-1 text-[10px] font-medium text-violet-700">
+                    Historical
+                  </span>
+                )}
+              </div>
+
+              <div className="mt-4 grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(360px,0.8fr)] xl:items-start">
+                <div>
                   <div
                     className={cn(
-                      "flex max-w-sm items-center gap-4 rounded-xl border bg-card px-4 py-3 shadow-sm",
+                      "flex min-h-[126px] max-w-sm items-center gap-4 rounded-xl border bg-card px-4 py-3 shadow-sm",
                       countdown.isPast ? "border-amber-200" : "border-border",
                     )}
                   >
@@ -788,14 +795,14 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                     </div>
                   </div>
                 </div>
-                <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
+                <div className="min-h-[126px] rounded-xl border border-border bg-card p-3 shadow-sm">
                   <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_200px]">
                     <Input
                       value={target}
                       onChange={(event) => setTarget(event.target.value)}
                       placeholder="Target, e.g. Midterm 1"
                       disabled={creating}
-                      className="h-11 bg-background text-base"
+                      className="h-12 bg-background text-[15px] md:text-base"
                     />
                     <Select
                       value={retrievalMode}
@@ -803,7 +810,7 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                         setRetrievalMode(value as StudyGuideRetrievalMode)
                       }
                     >
-                      <SelectTrigger className="h-11 bg-background text-base">
+                      <SelectTrigger className="h-12 bg-background text-[15px] md:text-base">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -815,7 +822,7 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                   <Button
                     onClick={createGuide}
                     disabled={creating}
-                    className="mt-3 h-11 w-full bg-amber-500 text-base text-white hover:bg-amber-600"
+                    className="mt-3 h-10 w-full bg-amber-500 text-base text-white hover:bg-amber-600"
                   >
                     {creating ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
