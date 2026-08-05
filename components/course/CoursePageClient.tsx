@@ -111,7 +111,11 @@ export function CoursePageClient({ courseId, view }: CoursePageClientProps) {
           </div>
         )}
         {view === "study-guide" && (
-          <PersistedStudyGuidePanel course={course} />
+          <PersistedStudyGuidePanel
+            course={course}
+            school={school}
+            professor={professor}
+          />
         )}
         {view === "syllabus" && <SyllabusPanel course={course} />}
         {view === "settings" && (

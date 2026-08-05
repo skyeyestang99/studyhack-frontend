@@ -469,7 +469,7 @@ describe("PersistedStudyGuidePanel polling", () => {
     await flushAsyncUpdates();
     const firstGuideCountAfterTimeout = guideFetchCount("guide-1");
 
-    fireEvent.click(screen.getByTitle("Final guide — generating · personal"));
+    fireEvent.click(screen.getByText("Final guide"));
     await flushAsyncUpdates();
     expect(screen.getByText("Final concept")).toBeInTheDocument();
 

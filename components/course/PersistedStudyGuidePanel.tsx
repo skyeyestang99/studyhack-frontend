@@ -13,11 +13,14 @@ import {
   FileText,
   Flag,
   FolderOpen,
+  Globe2,
   Hash,
   Loader2,
   Lock,
+  MessageSquarePlus,
   Pencil,
   RefreshCw,
+  Search,
   Send,
   Sparkles,
   Trash2,
@@ -33,9 +36,15 @@ import type {
   ApiError,
   Course,
   CreateStudyGuideResponse,
+  PublishedStudyGuide,
+  PublishedStudyGuideSummary,
+  Professor,
+  School,
   StudyGuide,
   StudyGuideConcept,
+  StudyGuideDiscoverResponse,
   StudyGuideListItem,
+  StudyGuidePublicationResponse,
   StudyGuideRetrievalMode,
   StudyGuideRevision,
   StudyGuideSource,
@@ -45,6 +54,14 @@ import type {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DeleteDialog } from "@/components/dashboard/DeleteDialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -119,6 +136,23 @@ function formatEventTime(date: string) {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(date));
+}
+
+function formatShortDate(date: string | null | undefined) {
+  if (!date) return "not ready";
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+  }).format(new Date(date));
+}
+
+function guideListMeta(item: StudyGuideListItem) {
+  return [
+    item.target,
+    formatShortDate(item.readyAt ?? item.createdAt),
+    item.retrievalMode,
+    item.status,
+  ].join(" · ");
 }
 
 const examTypes = new Set(["MIDTERM", "FINAL"]);
@@ -236,7 +270,15 @@ function countdownCopy(
   };
 }
 
-export function PersistedStudyGuidePanel({ course }: { course: Course }) {
+export function PersistedStudyGuidePanel({
+  course,
+  school,
+  professor,
+}: {
+  course: Course;
+  school?: School;
+  professor?: Professor;
+}) {
   const [target, setTarget] = useState("Midterm 1");
   const [retrievalMode, setRetrievalMode] =
     useState<StudyGuideRetrievalMode>("personal");
@@ -248,7 +290,15 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
   const [viewingVersion, setViewingVersion] = useState<StudyGuideVersion | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [workspaceMode, setWorkspaceMode] = useState<"mine" | "discover">("mine");
   const [activeTab, setActiveTab] = useState<Tab>("concepts");
+  const [discoverQuery, setDiscoverQuery] = useState("");
+  const [discoverResults, setDiscoverResults] = useState<PublishedStudyGuideSummary[]>([]);
+  const [discoverLoading, setDiscoverLoading] = useState(false);
+  const [publishedGuide, setPublishedGuide] = useState<PublishedStudyGuide | null>(null);
+  const [publishedGuideLoading, setPublishedGuideLoading] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false);
   const [guidesCollapsed, setGuidesCollapsed] = useState(false);
   const [editingGuide, setEditingGuide] = useState(false);
   const [guideTitleDraft, setGuideTitleDraft] = useState("");
@@ -347,6 +397,44 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
     setVersions(rows);
   };
 
+  const loadDiscover = async (query = discoverQuery) => {
+    setDiscoverLoading(true);
+    try {
+      const params: Record<string, string> = { limit: "25" };
+      const cleanQuery = query.trim();
+      if (cleanQuery) params.q = cleanQuery;
+      const response = await apiClient.get<StudyGuideDiscoverResponse>(
+        `/api/courses/${course.id}/study-guides/discover`,
+        { params },
+      );
+      setDiscoverResults(response.results);
+      if (
+        publishedGuide &&
+        !response.results.some((result) => result.guideId === publishedGuide.id)
+      ) {
+        setPublishedGuide(null);
+      }
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setDiscoverLoading(false);
+    }
+  };
+
+  const openPublishedGuide = async (guideId: string) => {
+    setPublishedGuideLoading(true);
+    try {
+      const next = await apiClient.get<PublishedStudyGuide>(
+        `/api/study-guides/${guideId}/published`,
+      );
+      setPublishedGuide(next);
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setPublishedGuideLoading(false);
+    }
+  };
+
   const viewVersion = async (versionId: string) => {
     if (!guide) return;
     const version = await apiClient.get<StudyGuideVersion>(
@@ -364,6 +452,51 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
     setEditConcept(null);
     setRevisionConcept(null);
     setHasNewVersionAvailable(false);
+  };
+
+  const publishCurrentGuide = async (publication?: { title: string; summary: string }) => {
+    if (!guide) return;
+    setPublishing(true);
+    try {
+      await apiClient.post<StudyGuidePublicationResponse>(
+        `/api/study-guides/${guide.id}/publish`,
+        publication ?? {},
+        { headers: { "Idempotency-Key": idempotencyKey("study-guide-publish") } },
+      );
+      await loadGuide(guide.id, { preserveViewState: true });
+      await loadGuides();
+      await loadDiscover();
+      toast.success("Guide publish started. It will appear in Discover after indexing.");
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const requestPublish = () => {
+    if (!guide || guide.status !== "ready") return;
+    setPublishDialogOpen(true);
+  };
+
+  const unpublishCurrentGuide = async () => {
+    if (!guide) return;
+    setPublishing(true);
+    try {
+      await apiClient.post<StudyGuidePublicationResponse>(
+        `/api/study-guides/${guide.id}/unpublish`,
+        {},
+        { headers: { "Idempotency-Key": idempotencyKey("study-guide-unpublish") } },
+      );
+      await loadGuide(guide.id, { preserveViewState: true });
+      await loadGuides();
+      await loadDiscover();
+      toast.success("Guide removed from Discover.");
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setPublishing(false);
+    }
   };
 
   const refreshCurrentGuideStatus = async () => {
@@ -402,6 +535,12 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
     loadSyllabusEvents().catch(() => setSyllabusEvents([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [course.id]);
+
+  useEffect(() => {
+    if (workspaceMode !== "discover") return;
+    loadDiscover().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceMode, course.id]);
 
   useEffect(() => {
     if (!selectedGuideId) {
@@ -691,7 +830,10 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                   {guidesCollapsed ? <BookOpen className="h-4 w-4" /> : "No saved guides yet."}
                 </div>
               )}
-              {guides.map((item) => (
+              {guides.map((item) => {
+                const label = item.title || item.target;
+                const meta = guideListMeta(item);
+                return (
                 <button
                   key={item.id}
                   onClick={() => setSelectedGuideId(item.id)}
@@ -700,23 +842,24 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                       ? "bg-amber-100 text-amber-800"
                       : "text-muted-foreground hover:bg-card hover:text-foreground"
                   } ${guidesCollapsed ? "flex h-10 items-center justify-center px-0 py-0" : "px-3 py-2"}`}
-                  title={`${item.title || item.target} — ${item.status} · ${item.retrievalMode}`}
+                  title={`${label} — ${meta} · ${item.id.slice(0, 8)}`}
                 >
                   <div className={cn("flex items-center gap-2", guidesCollapsed && "justify-center")}>
                     <BookOpen className="h-3.5 w-3.5 shrink-0" />
                     {!guidesCollapsed && (
                       <span className="truncate text-xs font-medium">
-                        {item.title || item.target}
+                        {label}
                       </span>
                     )}
                   </div>
                   {!guidesCollapsed && (
                     <p className="mt-1 truncate pl-5 font-mono text-[10px] opacity-70">
-                      {item.status} · {item.retrievalMode}
+                      {meta}
                     </p>
                   )}
                 </button>
-              ))}
+                );
+              })}
             </div>
           </aside>
 
@@ -730,7 +873,7 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                 <span className="truncate font-medium text-amber-700">
                   {currentVersion?.title ?? selectedLabel}
                 </span>
-                <div className="ml-auto hidden shrink-0 items-center gap-2 sm:flex">
+                <div className="ml-auto flex max-w-[70%] shrink-0 items-center gap-2 overflow-x-auto pl-3">
                   {guide && (
                     <span
                       className={`rounded-md border px-2.5 py-1.5 text-xs font-medium capitalize ${statusTone(
@@ -758,20 +901,57 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
               </div>
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-semibold leading-tight tracking-tight">
-                  Study Guide
+                  {workspaceMode === "discover" ? "Discover" : "Study Guide"}
                 </h1>
                 {currentVersion && !isViewingCurrentVersion && (
                   <span className="rounded border border-violet-200 bg-violet-50 px-2 py-1 text-[10px] font-medium text-violet-700">
                     Historical
                   </span>
                 )}
+                <div className="ml-auto flex max-w-[70%] shrink-0 items-center gap-2 overflow-x-auto pl-3">
+                  <TopActionButton
+                    active={workspaceMode === "discover"}
+                    onClick={() =>
+                      setWorkspaceMode((mode) => (mode === "discover" ? "mine" : "discover"))
+                    }
+                    icon={<Globe2 className="h-3.5 w-3.5" />}
+                  >
+                    Discover
+                  </TopActionButton>
+                  <TopActionButton
+                    disabled
+                    title="Feedback is not available in this beta slice."
+                    icon={<MessageSquarePlus className="h-3.5 w-3.5" />}
+                  >
+                    Feedback
+                  </TopActionButton>
+                  <TopActionButton
+                    disabled={!guide || guide.status !== "ready" || publishing}
+                    onClick={
+                      guide?.discoveryStatus === "published"
+                        ? unpublishCurrentGuide
+                        : requestPublish
+                    }
+                    icon={
+                      publishing ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Globe2 className="h-3.5 w-3.5" />
+                      )
+                    }
+                  >
+                    {guide?.discoveryStatus === "published" ? "Unpublish" : "Publish"}
+                  </TopActionButton>
+                </div>
               </div>
 
-              <div className="mt-4 grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(360px,0.8fr)] xl:items-start">
+              {workspaceMode === "mine" ? (
+              <>
+              <div className="mt-4 grid gap-5 xl:grid-cols-[minmax(0,4fr)_minmax(0,6fr)] xl:items-stretch">
                 <div>
                   <div
                     className={cn(
-                      "flex min-h-[126px] max-w-sm items-center gap-4 rounded-xl border bg-card px-4 py-3 shadow-sm",
+                      "flex min-h-[126px] w-full items-center gap-4 rounded-xl border bg-card px-4 py-3 shadow-sm",
                       countdown.isPast ? "border-amber-200" : "border-border",
                     )}
                   >
@@ -795,14 +975,14 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                     </div>
                   </div>
                 </div>
-                <div className="min-h-[126px] rounded-xl border border-border bg-card p-3 shadow-sm">
+                <div className="min-h-[126px] w-full rounded-xl border border-border bg-card p-3 shadow-sm">
                   <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_200px]">
                     <Input
                       value={target}
                       onChange={(event) => setTarget(event.target.value)}
                       placeholder="Target, e.g. Midterm 1"
                       disabled={creating}
-                      className="h-12 bg-background text-[15px] md:text-base"
+                      className="h-10 bg-background text-sm"
                     />
                     <Select
                       value={retrievalMode}
@@ -810,7 +990,7 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                         setRetrievalMode(value as StudyGuideRetrievalMode)
                       }
                     >
-                      <SelectTrigger className="h-12 bg-background text-[15px] md:text-base">
+                      <SelectTrigger className="h-10 bg-background text-sm">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -822,7 +1002,7 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                   <Button
                     onClick={createGuide}
                     disabled={creating}
-                    className="mt-3 h-10 w-full bg-amber-500 text-base text-white hover:bg-amber-600"
+                    className="mt-3 h-9 w-full bg-amber-500 text-sm text-white hover:bg-amber-600"
                   >
                     {creating ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -849,9 +1029,51 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                   </button>
                 ))}
               </div>
+              </>
+              ) : (
+                <form
+                  className="mt-5 flex gap-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    loadDiscover().catch(() => {});
+                  }}
+                >
+                  <div className="relative min-w-0 flex-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={discoverQuery}
+                      onChange={(event) => setDiscoverQuery(event.target.value)}
+                      placeholder="Search published guides by title, target, or summary"
+                      className="h-10 bg-card pl-9"
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    className="h-10 bg-amber-500 text-white hover:bg-amber-600"
+                    disabled={discoverLoading}
+                  >
+                    {discoverLoading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Search className="mr-2 h-4 w-4" />
+                    )}
+                    Search
+                  </Button>
+                </form>
+              )}
             </div>
 
             <div className="space-y-5 px-4 py-6 md:px-8">
+              {workspaceMode === "discover" ? (
+                <DiscoverContent
+                  results={discoverResults}
+                  loading={discoverLoading}
+                  publishedGuide={publishedGuide}
+                  publishedGuideLoading={publishedGuideLoading}
+                  onOpen={openPublishedGuide}
+                />
+              ) : (
+              <>
               {loading && (
                 <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -979,6 +1201,8 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                     </article>
                   ))}
                 </div>
+              )}
+              </>
               )}
             </div>
           </main>
@@ -1301,7 +1525,338 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
       onCancel={() => setDeleteGuideTarget(null)}
       isDeleting={deletingGuide}
     />
+    <PublishGuideDialog
+      open={publishDialogOpen}
+      course={course}
+      school={school}
+      professor={professor}
+      guide={guide}
+      version={guide?.currentVersion ?? null}
+      publishing={publishing}
+      onCancel={() => setPublishDialogOpen(false)}
+      onConfirm={async (publication) => {
+        await publishCurrentGuide(publication);
+        setPublishDialogOpen(false);
+      }}
+    />
     </>
+  );
+}
+
+function PublishGuideDialog({
+  open,
+  course,
+  school,
+  professor,
+  guide,
+  version,
+  publishing,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  course: Course;
+  school?: School;
+  professor?: Professor;
+  guide: StudyGuide | null;
+  version: StudyGuideVersion | null;
+  publishing: boolean;
+  onCancel: () => void;
+  onConfirm: (publication: { title: string; summary: string }) => void | Promise<void>;
+}) {
+  const title = version?.title ?? guide?.target ?? "";
+  const description = version?.summary ?? "";
+  const [titleDraft, setTitleDraft] = useState(title);
+  const [descriptionDraft, setDescriptionDraft] = useState(description);
+
+  useEffect(() => {
+    if (!open) return;
+    setTitleDraft(title);
+    setDescriptionDraft(description);
+  }, [description, open, title]);
+
+  const canPublish =
+    titleDraft.trim().length > 0 && descriptionDraft.trim().length > 0 && !publishing;
+
+  return (
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onCancel()}>
+      <DialogContent className="max-w-2xl gap-0 overflow-hidden rounded-2xl border-border p-0">
+        <DialogHeader className="border-b border-border px-6 py-5 text-left">
+          <DialogTitle className="text-xl">Publish Study Guide</DialogTitle>
+          <DialogDescription>
+            Share with students enrolled in {course.code}.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-5 px-6 py-6">
+          <div>
+            <label className="text-sm font-semibold text-foreground">Title</label>
+            <Input
+              value={titleDraft}
+              onChange={(event) => setTitleDraft(event.target.value)}
+              className="mt-2 h-11 bg-background text-sm"
+              placeholder="Title shown in Discover"
+              disabled={publishing}
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-foreground">Description</label>
+            <textarea
+              value={descriptionDraft}
+              onChange={(event) => setDescriptionDraft(event.target.value)}
+              className="mt-2 min-h-24 w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm leading-relaxed text-foreground shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              placeholder="Description shown in Discover"
+              disabled={publishing}
+            />
+          </div>
+
+          <div className="rounded-xl border border-border bg-card px-4 py-4">
+            <p className="font-mono text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Course Context (Auto-filled)
+            </p>
+            <div className="mt-4 grid gap-4 text-sm sm:grid-cols-3">
+              <div>
+                <p className="text-xs text-muted-foreground">School</p>
+                <p className="mt-1 font-medium text-foreground">
+                  {school?.shortName || school?.name || "Unknown"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Course</p>
+                <p className="mt-1 font-medium text-foreground">
+                  {course.code}
+                  {course.name ? ` · ${course.name}` : ""}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Professor</p>
+                <p className="mt-1 font-medium text-foreground">
+                  {professor?.name || "Unknown"}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-sm font-semibold text-foreground">Visibility</p>
+            <div className="mt-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
+                  <Lock className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Course only</p>
+                  <p className="text-xs text-muted-foreground">
+                    Only students enrolled in {course.code}.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter className="grid grid-cols-2 gap-3 border-t border-border px-6 py-5 sm:space-x-0">
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 bg-background"
+            onClick={onCancel}
+            disabled={publishing}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            className="h-11 bg-amber-500 text-white hover:bg-amber-600"
+            onClick={() =>
+              onConfirm({
+                title: titleDraft.trim(),
+                summary: descriptionDraft.trim(),
+              })
+            }
+            disabled={!canPublish}
+          >
+            {publishing ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Globe2 className="mr-2 h-4 w-4" />
+            )}
+            Publish Guide
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DiscoverContent({
+  results,
+  loading,
+  publishedGuide,
+  publishedGuideLoading,
+  onOpen,
+}: {
+  results: PublishedStudyGuideSummary[];
+  loading: boolean;
+  publishedGuide: PublishedStudyGuide | null;
+  publishedGuideLoading: boolean;
+  onOpen: (guideId: string) => void;
+}) {
+  return (
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
+      <div className="space-y-3">
+        {loading && (
+          <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading published guides...
+          </div>
+        )}
+
+        {!loading && results.length === 0 && (
+          <div className="rounded-xl border border-dashed border-border bg-card px-5 py-8 text-center">
+            <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-secondary">
+              <Search className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <p className="mt-3 text-sm font-semibold">No published guides found</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Try another title, target, or summary phrase.
+            </p>
+          </div>
+        )}
+
+        {results.map((result) => {
+          const selected = publishedGuide?.id === result.guideId;
+          return (
+            <button
+              key={result.guideId}
+              type="button"
+              onClick={() => onOpen(result.guideId)}
+              className={cn(
+                "w-full rounded-xl border bg-card px-4 py-3 text-left transition-colors",
+                selected
+                  ? "border-amber-300 bg-amber-50"
+                  : "border-border hover:border-amber-200 hover:bg-amber-50/40",
+              )}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-foreground">
+                    {result.title}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {result.courseCode}
+                    {result.professorName ? ` · ${result.professorName}` : ""} · {result.target}
+                  </p>
+                </div>
+                <span className="shrink-0 rounded border border-border bg-secondary px-2 py-1 font-mono text-[10px] text-muted-foreground">
+                  {result.groundingIndicator}
+                </span>
+              </div>
+              {result.topics.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {result.topics.slice(0, 4).map((topic) => (
+                    <span
+                      key={topic}
+                      className="rounded border border-border bg-secondary px-2 py-1 font-mono text-[10px] text-muted-foreground"
+                    >
+                      {topic}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <p className="mt-3 text-[11px] text-muted-foreground">
+                Published {new Date(result.publishedAt).toLocaleDateString()}
+                {result.saved ? " · saved" : ""}
+              </p>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="min-w-0">
+        {publishedGuideLoading && (
+          <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Opening published guide...
+          </div>
+        )}
+
+        {!publishedGuideLoading && !publishedGuide && (
+          <div className="rounded-xl border border-dashed border-border bg-card px-5 py-10 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-secondary">
+              <BookOpen className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <p className="mt-3 text-sm font-semibold">Select a published guide</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Published guides open read-only and do not modify your private guides.
+            </p>
+          </div>
+        )}
+
+        {!publishedGuideLoading && publishedGuide && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-border bg-card px-4 py-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Published guide
+              </p>
+              <h2 className="mt-2 text-xl font-semibold tracking-tight">
+                {publishedGuide.version.title}
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                {publishedGuide.version.summary}
+              </p>
+            </div>
+
+            {publishedGuide.version.concepts.map((concept, index) => (
+              <ConceptCard
+                key={concept.logicalConceptId}
+                concept={concept}
+                index={index}
+                canEdit={false}
+                canRevise={false}
+                onEdit={() => {}}
+                onRevise={() => {}}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TopActionButton({
+  children,
+  icon,
+  active = false,
+  disabled = false,
+  title,
+  onClick,
+}: {
+  children: React.ReactNode;
+  icon: React.ReactNode;
+  active?: boolean;
+  disabled?: boolean;
+  title?: string;
+  onClick?: () => void;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className={cn(
+        "h-8 shrink-0 rounded-lg bg-card",
+        active && "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-50",
+      )}
+    >
+      {icon}
+      <span className="ml-1.5">{children}</span>
+    </Button>
   );
 }
 
