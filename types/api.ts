@@ -90,6 +90,8 @@ export interface Course {
   code: string;
   schoolId: string;
   professorId: string;
+  schoolName?: string;
+  professorName?: string;
   enrollmentCount?: number;
   createdAt: string;
 }

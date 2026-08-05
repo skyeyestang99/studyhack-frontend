@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 import { useEntities } from "@/hooks/useEntities";
 import { useEntityModal } from "@/hooks/useEntityModal";
@@ -52,7 +53,6 @@ export default function CoursesPage() {
   } = useEntities<Course>("/api/courses", coursesParams);
 
   const { data: schools } = useEntities<School>("/api/schools");
-  const { data: professors } = useEntities<Professor>("/api/professors");
 
   const modal = useEntityModal<Course>();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -62,33 +62,80 @@ export default function CoursesPage() {
   // Modal form state
   const [modalValues, setModalValues] = useState<Record<string, string>>({});
   const [modalErrors, setModalErrors] = useState<Record<string, string>>({});
+  const [newProfessorName, setNewProfessorName] = useState("");
+  const [isCreatingProfessor, setIsCreatingProfessor] = useState(false);
+  const modalProfessorParams = useMemo(
+    () => (modalValues.schoolId ? { schoolId: modalValues.schoolId } : undefined),
+    [modalValues.schoolId],
+  );
+  const {
+    data: modalProfessors,
+    isLoading: modalProfessorsLoading,
+    refresh: refreshProfessors,
+  } = useEntities<Professor>(
+    "/api/professors",
+    modalProfessorParams,
+    modal.open && Boolean(modalValues.schoolId),
+  );
 
   // Lookup maps for displaying school/professor names in the table
   const schoolMap = useMemo(() => {
     const map = new Map<string, string>();
     schools.forEach((s) => map.set(s.id, s.name));
+    courses.forEach((c) => {
+      if (c.schoolName) map.set(c.schoolId, c.schoolName);
+    });
     return map;
-  }, [schools]);
+  }, [courses, schools]);
 
   const professorMap = useMemo(() => {
     const map = new Map<string, string>();
-    professors.forEach((p) => map.set(p.id, p.name));
+    courses.forEach((c) => {
+      if (c.professorName) map.set(c.professorId, c.professorName);
+    });
+    modalProfessors.forEach((p) => map.set(p.id, p.name));
     return map;
-  }, [professors]);
+  }, [courses, modalProfessors]);
 
   // Cascading: filter professors by selected school in the modal
   const modalProfessorOptions = useMemo(() => {
-    const schoolId = modalValues.schoolId;
-    if (!schoolId) return [];
-    return professors
-      .filter((p) => p.schoolId === schoolId)
-      .map((p) => ({ value: p.id, label: p.name }));
-  }, [professors, modalValues.schoolId]);
+    if (!modalValues.schoolId) return [];
+    const options = modalProfessors.map((p) => ({ value: p.id, label: p.name }));
+    const selectedId = modalValues.professorId;
+    if (selectedId && !options.some((option) => option.value === selectedId)) {
+      options.unshift({
+        value: selectedId,
+        label: professorMap.get(selectedId) ?? "Unknown",
+      });
+    }
+    return options;
+  }, [modalProfessors, modalValues.professorId, modalValues.schoolId, professorMap]);
 
-  const schoolOptions = useMemo(
-    () => schools.map((s) => ({ value: s.id, label: s.name })),
-    [schools],
-  );
+  const schoolOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    courses.forEach((c) => {
+      map.set(c.schoolId, c.schoolName ?? schoolMap.get(c.schoolId) ?? "Unknown");
+    });
+    if (modalValues.schoolId && !map.has(modalValues.schoolId)) {
+      map.set(modalValues.schoolId, schoolMap.get(modalValues.schoolId) ?? "Unknown");
+    }
+    if (map.size === 0) {
+      schools.slice(0, 100).forEach((s) => map.set(s.id, s.name));
+    }
+    return Array.from(map, ([value, label]) => ({ value, label })).sort((a, b) =>
+      a.label.localeCompare(b.label),
+    );
+  }, [courses, modalValues.schoolId, schoolMap, schools]);
+
+  const professorFilterOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    courses.forEach((c) => {
+      map.set(c.professorId, c.professorName ?? professorMap.get(c.professorId) ?? "Unknown");
+    });
+    return Array.from(map, ([value, label]) => ({ value, label })).sort((a, b) =>
+      a.label.localeCompare(b.label),
+    );
+  }, [courses, professorMap]);
 
   const columns: Column<Course>[] = useMemo(
     () => [
@@ -127,6 +174,7 @@ export default function CoursesPage() {
         setModalValues({ name: "", code: "", schoolId: "", professorId: "" });
       }
       setModalErrors({});
+      setNewProfessorName("");
     }
   }, [modal.open, modal.mode, modal.entity]);
 
@@ -182,6 +230,28 @@ export default function CoursesPage() {
     }
   };
 
+  const handleCreateProfessor = async () => {
+    const name = newProfessorName.trim();
+    if (!modalValues.schoolId || !name) return;
+    setIsCreatingProfessor(true);
+    try {
+      const created = await apiClient.post<Professor>("/api/professors", {
+        name,
+        schoolId: modalValues.schoolId,
+        confirmed: true,
+      });
+      setModalValues((prev) => ({ ...prev, professorId: created.id }));
+      setNewProfessorName("");
+      refreshProfessors();
+      toast.success("Professor created successfully");
+    } catch (err) {
+      const apiError = err as ApiError;
+      toast.error(apiError.message || "Failed to create professor");
+    } finally {
+      setIsCreatingProfessor(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setIsDeleting(true);
@@ -206,6 +276,10 @@ export default function CoursesPage() {
     setFilterProfessorId(value === "all" ? "" : value);
   };
 
+  const createCourseHref = filterSchoolId
+    ? `/onboarding?schoolId=${encodeURIComponent(filterSchoolId)}`
+    : "/onboarding";
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -228,7 +302,9 @@ export default function CoursesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Courses</h1>
-        <Button onClick={modal.openCreate}>Create Course</Button>
+        <Button asChild>
+          <Link href={createCourseHref}>Create Course</Link>
+        </Button>
       </div>
 
       <div className="flex gap-4">
@@ -258,9 +334,9 @@ export default function CoursesPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Professors</SelectItem>
-            {professors.map((professor) => (
-              <SelectItem key={professor.id} value={professor.id}>
-                {professor.name}
+            {professorFilterOptions.map((professor) => (
+              <SelectItem key={professor.value} value={professor.value}>
+                {professor.label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -271,7 +347,7 @@ export default function CoursesPage() {
         <EmptyState
           message="No courses yet"
           actionLabel="Create Course"
-          onAction={modal.openCreate}
+          onAction={() => router.push(createCourseHref)}
         />
       ) : (
         <EntityTable
@@ -366,7 +442,9 @@ export default function CoursesPage() {
                 <SelectTrigger id="course-professor">
                   <SelectValue
                     placeholder={
-                      modalValues.schoolId
+                      modalProfessorsLoading
+                        ? "Loading professors"
+                        : modalValues.schoolId
                         ? "Select a professor"
                         : "Select a school first"
                     }
@@ -380,6 +458,29 @@ export default function CoursesPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {modalValues.schoolId && modalProfessorOptions.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  No professors exist for this school yet.
+                </p>
+              )}
+              {modalValues.schoolId && (
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Add professor for this school"
+                    value={newProfessorName}
+                    onChange={(event) => setNewProfessorName(event.target.value)}
+                    disabled={isCreatingProfessor}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleCreateProfessor}
+                    disabled={!newProfessorName.trim() || isCreatingProfessor}
+                  >
+                    {isCreatingProfessor ? "Adding..." : "Add"}
+                  </Button>
+                </div>
+              )}
               {modalErrors.professorId && (
                 <p className="text-sm text-destructive">
                   {modalErrors.professorId}
