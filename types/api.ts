@@ -90,6 +90,8 @@ export interface Course {
   code: string;
   schoolId: string;
   professorId: string;
+  schoolName?: string;
+  professorName?: string;
   enrollmentCount?: number;
   createdAt: string;
 }
@@ -270,6 +272,9 @@ export interface StudyGuide {
   errorCode: string | null;
   errorMessage: string | null;
   currentVersionId: string | null;
+  discoveryStatus?: "private" | "published" | "delisted";
+  publishedVersionId?: string | null;
+  publishedAt?: string | null;
   currentVersion?: StudyGuideVersion | null;
   createdAt: string;
   updatedAt: string;
@@ -283,6 +288,9 @@ export interface StudyGuideListItem {
   retrievalMode: StudyGuideRetrievalMode;
   status: StudyGuideStatus;
   currentVersionId: string | null;
+  discoveryStatus?: "private" | "published" | "delisted";
+  publishedVersionId?: string | null;
+  publishedAt?: string | null;
   title: string | null;
   createdAt: string;
   updatedAt: string;
@@ -308,4 +316,37 @@ export interface StudyGuideRevision {
   createdAt: string;
   startedAt: string | null;
   completedAt: string | null;
+}
+
+export interface PublishedStudyGuideSummary {
+  guideId: string;
+  publishedVersionId: string;
+  title: string;
+  courseCode: string;
+  target: string;
+  professorName: string | null;
+  topics: string[];
+  groundingIndicator: "grounded" | "partial" | "general";
+  publishedAt: string;
+  saved: boolean;
+}
+
+export interface StudyGuideDiscoverResponse {
+  results: PublishedStudyGuideSummary[];
+}
+
+export interface PublishedStudyGuide {
+  id: string;
+  courseId: string;
+  target: string;
+  publishedVersionId: string;
+  publishedAt: string;
+  version: StudyGuideVersion;
+}
+
+export interface StudyGuidePublicationResponse {
+  guideId: string;
+  publishedVersionId?: string;
+  publicationStatus: "published" | "private" | "indexing";
+  publishedAt?: string;
 }
