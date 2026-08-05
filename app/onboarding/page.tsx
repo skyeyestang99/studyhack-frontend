@@ -34,6 +34,23 @@ import { Label } from "@/components/ui/label";
 
 const NEW_SCHOOL_ID = "__new";
 const DIRECT_COUNT_THRESHOLD = 21;
+const POPULAR_MAJORS = [
+  "Computer Science",
+  "Data Science",
+  "Software Engineering",
+  "Computer Engineering",
+  "Electrical Engineering",
+  "Mathematics",
+  "Statistics",
+  "Business Administration",
+  "Economics",
+  "Biology",
+  "Psychology",
+  "Mechanical Engineering",
+  "Civil Engineering",
+  "Cognitive Science",
+  "Information Systems",
+];
 
 interface CourseRow {
   id: string;
@@ -102,6 +119,7 @@ export default function OnboardingPage() {
   const [newSchool, setNewSchool] = useState("");
   const [confirmedNewSchool, setConfirmedNewSchool] = useState("");
   const [major, setMajor] = useState("");
+  const [majorFocused, setMajorFocused] = useState(false);
   const [semester, setSemester] = useState("Spring 2026");
   const [saved, setSaved] = useState(false);
   const [attemptedSave, setAttemptedSave] = useState(false);
@@ -117,6 +135,14 @@ export default function OnboardingPage() {
     schoolQuery.trim().length > 0 &&
     schoolSearch.data.canCreate &&
     schoolId !== NEW_SCHOOL_ID;
+  const majorQuery = major.trim().toLowerCase();
+  const majorSuggestions = majorQuery
+    ? POPULAR_MAJORS.filter((item) => item.toLowerCase().includes(majorQuery)).slice(0, 6)
+    : POPULAR_MAJORS.slice(0, 6);
+  const hasExactMajor = POPULAR_MAJORS.some(
+    (item) => item.toLowerCase() === majorQuery,
+  );
+  const showMajorSuggestions = majorFocused && majorSuggestions.length > 0;
 
   useEffect(() => {
     if (!schoolIdParam || schoolId || schools.isLoading) return;
@@ -201,9 +227,7 @@ export default function OnboardingPage() {
   const hasSemester = Boolean(semester.trim());
   const validRows = rows.filter((row) => row.code.trim() && row.name.trim());
   const hasCourse = validRows.length > 0;
-  const rowsMissingProfessor = validRows.filter(
-    (row) => !row.courseId && !row.professorId,
-  );
+  const rowsMissingProfessor = validRows.filter((row) => !row.professorId);
   const hasRequiredProfessors = rowsMissingProfessor.length === 0;
   const canSave =
     hasSchool && hasMajor && hasSemester && hasCourse && hasRequiredProfessors;
@@ -372,13 +396,52 @@ export default function OnboardingPage() {
 
             <div className="space-y-2">
               <Label htmlFor="major">Major</Label>
-              <Input
-                id="major"
-                placeholder="Type your major, e.g. Computer Science"
-                value={major}
-                onChange={(event) => setMajor(event.target.value)}
-                aria-invalid={attemptedSave && !hasMajor}
-              />
+              <div className="relative">
+                <Input
+                  id="major"
+                  placeholder="Type your major, e.g. Computer Science"
+                  value={major}
+                  onFocus={() => setMajorFocused(true)}
+                  onBlur={() => {
+                    window.setTimeout(() => setMajorFocused(false), 150);
+                  }}
+                  onChange={(event) => setMajor(event.target.value)}
+                  aria-invalid={attemptedSave && !hasMajor}
+                  autoComplete="off"
+                />
+                {showMajorSuggestions && (
+                  <div
+                    className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-background shadow-lg"
+                    role="listbox"
+                    aria-label="Major suggestions"
+                  >
+                    <p className="bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground">
+                      Popular majors
+                    </p>
+                    {majorSuggestions.map((item) => (
+                      <button
+                        key={item}
+                        type="button"
+                        role="option"
+                        aria-selected={item === major}
+                        className="block w-full border-t px-3 py-2 text-left text-sm hover:bg-muted"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => {
+                          setMajor(item);
+                          setMajorFocused(false);
+                        }}
+                      >
+                        {item}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {hasMajor && !hasExactMajor && (
+                <p className="text-xs text-muted-foreground">
+                  Custom major: <span className="font-medium">{major.trim()}</span>
+                </p>
+              )}
               {attemptedSave && !hasMajor && (
                 <p className="text-xs text-destructive">
                   Enter your major to continue.
@@ -429,7 +492,6 @@ export default function OnboardingPage() {
                   attemptedSave &&
                   Boolean(row.code.trim()) &&
                   Boolean(row.name.trim()) &&
-                  !row.courseId &&
                   !row.professorId
                 }
                 requestCreateProfessor={(name) =>
@@ -460,7 +522,7 @@ export default function OnboardingPage() {
                     !hasMajor && "major",
                     !hasSemester && "semester",
                     !hasCourse && "at least one course code and name",
-                    !hasRequiredProfessors && "professor for each new course",
+                    !hasRequiredProfessors && "professor for each course",
                   ]
                     .filter(Boolean)
                     .join(", ")}
@@ -581,7 +643,7 @@ function CourseRowEditor({
       code: course.code,
       name: course.name,
       professorId: course.professorId,
-      professorQuery: "",
+      professorQuery: course.professorName ?? "",
       newProfessor: "",
       newProfessorConfirmed: false,
     });
