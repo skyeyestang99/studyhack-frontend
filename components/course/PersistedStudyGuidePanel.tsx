@@ -10,6 +10,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   ChevronRight,
+  ExternalLink,
   FileText,
   Flag,
   FolderOpen,
@@ -295,8 +296,7 @@ export function PersistedStudyGuidePanel({
   const [discoverQuery, setDiscoverQuery] = useState("");
   const [discoverResults, setDiscoverResults] = useState<PublishedStudyGuideSummary[]>([]);
   const [discoverLoading, setDiscoverLoading] = useState(false);
-  const [publishedGuide, setPublishedGuide] = useState<PublishedStudyGuide | null>(null);
-  const [publishedGuideLoading, setPublishedGuideLoading] = useState(false);
+  const [publishedPreviewGuideId, setPublishedPreviewGuideId] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [publishDialogOpen, setPublishDialogOpen] = useState(false);
   const [guidesCollapsed, setGuidesCollapsed] = useState(false);
@@ -408,12 +408,6 @@ export function PersistedStudyGuidePanel({
         { params },
       );
       setDiscoverResults(response.results);
-      if (
-        publishedGuide &&
-        !response.results.some((result) => result.guideId === publishedGuide.id)
-      ) {
-        setPublishedGuide(null);
-      }
     } catch (error) {
       toast.error(errorMessage(error));
     } finally {
@@ -421,18 +415,8 @@ export function PersistedStudyGuidePanel({
     }
   };
 
-  const openPublishedGuide = async (guideId: string) => {
-    setPublishedGuideLoading(true);
-    try {
-      const next = await apiClient.get<PublishedStudyGuide>(
-        `/api/study-guides/${guideId}/published`,
-      );
-      setPublishedGuide(next);
-    } catch (error) {
-      toast.error(errorMessage(error));
-    } finally {
-      setPublishedGuideLoading(false);
-    }
+  const openPublishedGuide = (guideId: string) => {
+    setPublishedPreviewGuideId(guideId);
   };
 
   const viewVersion = async (versionId: string) => {
@@ -541,6 +525,15 @@ export function PersistedStudyGuidePanel({
     loadDiscover().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceMode, course.id]);
+
+  useEffect(() => {
+    if (workspaceMode !== "discover") return;
+    const handle = window.setTimeout(() => {
+      loadDiscover(discoverQuery).catch(() => {});
+    }, 300);
+    return () => window.clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [discoverQuery, workspaceMode, course.id]);
 
   useEffect(() => {
     if (!selectedGuideId) {
@@ -1068,8 +1061,7 @@ export function PersistedStudyGuidePanel({
                 <DiscoverContent
                   results={discoverResults}
                   loading={discoverLoading}
-                  publishedGuide={publishedGuide}
-                  publishedGuideLoading={publishedGuideLoading}
+                  query={discoverQuery}
                   onOpen={openPublishedGuide}
                 />
               ) : (
@@ -1539,7 +1531,203 @@ export function PersistedStudyGuidePanel({
         setPublishDialogOpen(false);
       }}
     />
+    <PublishedGuidePreviewDialog
+      open={publishedPreviewGuideId !== null}
+      guideId={publishedPreviewGuideId}
+      course={course}
+      professor={professor}
+      onClose={() => setPublishedPreviewGuideId(null)}
+    />
     </>
+  );
+}
+
+function PublishedGuidePreviewDialog({
+  open,
+  guideId,
+  course,
+  professor,
+  onClose,
+}: {
+  open: boolean;
+  guideId: string | null;
+  course: Course;
+  professor?: Professor;
+  onClose: () => void;
+}) {
+  const [guide, setGuide] = useState<PublishedStudyGuide | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open || !guideId) {
+      setGuide(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    apiClient
+      .get<PublishedStudyGuide>(`/api/study-guides/${guideId}/published`)
+      .then((nextGuide) => {
+        if (!cancelled) setGuide(nextGuide);
+      })
+      .catch((err: { message?: string }) => {
+        if (!cancelled) setError(err.message ?? "Guide not found");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [guideId, open]);
+
+  const allSources = useMemo(() => {
+    const seen = new Set<string>();
+    return (
+      guide?.version.concepts.flatMap((concept) =>
+        concept.sources.filter((source) => {
+          const key = `${source.materialId}:${source.page ?? ""}:${source.snippet}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        }),
+      ) ?? []
+    );
+  }, [guide]);
+
+  return (
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
+      <DialogContent className="flex max-h-[86vh] max-w-5xl flex-col gap-0 overflow-hidden rounded-2xl border-border p-0">
+        <DialogHeader className="border-b border-border px-6 py-5 text-left">
+          <DialogTitle className="text-xl">
+            {guide?.version.title ?? "Published Study Guide"}
+          </DialogTitle>
+          <DialogDescription>
+            {course.code}
+            {professor?.name ? ` · ${professor.name}` : ""}
+            {guide?.target ? ` · ${guide.target}` : ""}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+          {loading && (
+            <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading published guide...
+            </div>
+          )}
+
+          {!loading && error && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+              {error}
+            </div>
+          )}
+
+          {!loading && guide && guide.courseId !== course.id && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+              Published guide not found for this course.
+            </div>
+          )}
+
+          {!loading && guide && guide.courseId === course.id && (
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_280px]">
+              <div className="space-y-4">
+                <section className="rounded-xl border border-border bg-card px-5 py-4">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <span>Published {new Date(guide.publishedAt).toLocaleDateString()}</span>
+                    <span>· version snapshot</span>
+                  </div>
+                  <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                    {guide.version.summary}
+                  </p>
+                </section>
+
+                {guide.version.concepts.map((concept, index) => (
+                  <article
+                    key={concept.logicalConceptId}
+                    className="rounded-xl border border-border bg-card px-5 py-4"
+                  >
+                    <p className="font-mono text-xs text-muted-foreground">
+                      Concept {index + 1}
+                      {concept.category ? ` · ${concept.category}` : ""}
+                    </p>
+                    <h2 className="mt-2 text-base font-semibold">
+                      {concept.title}
+                    </h2>
+                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                      {concept.summary}
+                    </p>
+                    <ul className="mt-3 list-disc space-y-2 pl-5 text-sm">
+                      {concept.keyPoints.map((point) => (
+                        <li key={point}>{point}</li>
+                      ))}
+                    </ul>
+                    {concept.sources.length > 0 && (
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {concept.sources.map((source, sourceIndex) => (
+                          <button
+                            key={`${source.materialId}-${source.page ?? ""}-${sourceIndex}`}
+                            type="button"
+                            onClick={() =>
+                              openSource(source.materialId, source.page).catch(() =>
+                                toast.error("Could not open that source"),
+                              )
+                            }
+                            className="inline-flex items-center rounded-md border border-border bg-secondary px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground"
+                          >
+                            {sourceLabel(source, sourceIndex)}
+                            <ExternalLink className="ml-1.5 h-3 w-3" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </article>
+                ))}
+              </div>
+
+              <aside className="h-fit rounded-xl border border-border bg-card px-4 py-4">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="h-4 w-4 text-amber-600" />
+                  <h2 className="text-sm font-semibold">Sources</h2>
+                </div>
+                {allSources.length === 0 ? (
+                  <p className="mt-3 text-sm text-muted-foreground">No sources</p>
+                ) : (
+                  <div className="mt-3 space-y-2">
+                    {allSources.map((source, index) => (
+                      <button
+                        key={`${source.materialId}-${source.page ?? ""}-${index}`}
+                        type="button"
+                        onClick={() =>
+                          openSource(source.materialId, source.page).catch(() =>
+                            toast.error("Could not open that source"),
+                          )
+                        }
+                        className="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-left text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        <span className="font-medium text-foreground">
+                          {sourceLabel(source, index)}
+                        </span>
+                        <ExternalLink className="ml-1.5 inline h-3 w-3" />
+                        <span className="mt-1 line-clamp-3 block">
+                          {source.snippet}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </aside>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1693,18 +1881,17 @@ function PublishGuideDialog({
 function DiscoverContent({
   results,
   loading,
-  publishedGuide,
-  publishedGuideLoading,
+  query,
   onOpen,
 }: {
   results: PublishedStudyGuideSummary[];
   loading: boolean;
-  publishedGuide: PublishedStudyGuide | null;
-  publishedGuideLoading: boolean;
+  query: string;
   onOpen: (guideId: string) => void;
 }) {
+  const hasQuery = query.trim().length > 0;
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
+    <div className="space-y-3">
       <div className="space-y-3">
         {loading && (
           <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
@@ -1720,24 +1907,20 @@ function DiscoverContent({
             </div>
             <p className="mt-3 text-sm font-semibold">No published guides found</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Try another title, target, or summary phrase.
+              {hasQuery
+                ? "No title, target, or summary matched this search."
+                : "Publish a course guide first, then it will appear here after indexing."}
             </p>
           </div>
         )}
 
         {results.map((result) => {
-          const selected = publishedGuide?.id === result.guideId;
           return (
             <button
               key={result.guideId}
               type="button"
               onClick={() => onOpen(result.guideId)}
-              className={cn(
-                "w-full rounded-xl border bg-card px-4 py-3 text-left transition-colors",
-                selected
-                  ? "border-amber-300 bg-amber-50"
-                  : "border-border hover:border-amber-200 hover:bg-amber-50/40",
-              )}
+              className="w-full rounded-xl border border-border bg-card px-4 py-3 text-left transition-colors hover:border-amber-200 hover:bg-amber-50/40"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -1772,55 +1955,6 @@ function DiscoverContent({
             </button>
           );
         })}
-      </div>
-
-      <div className="min-w-0">
-        {publishedGuideLoading && (
-          <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Opening published guide...
-          </div>
-        )}
-
-        {!publishedGuideLoading && !publishedGuide && (
-          <div className="rounded-xl border border-dashed border-border bg-card px-5 py-10 text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-secondary">
-              <BookOpen className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <p className="mt-3 text-sm font-semibold">Select a published guide</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Published guides open read-only and do not modify your private guides.
-            </p>
-          </div>
-        )}
-
-        {!publishedGuideLoading && publishedGuide && (
-          <div className="space-y-4">
-            <div className="rounded-xl border border-border bg-card px-4 py-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Published guide
-              </p>
-              <h2 className="mt-2 text-xl font-semibold tracking-tight">
-                {publishedGuide.version.title}
-              </h2>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                {publishedGuide.version.summary}
-              </p>
-            </div>
-
-            {publishedGuide.version.concepts.map((concept, index) => (
-              <ConceptCard
-                key={concept.logicalConceptId}
-                concept={concept}
-                index={index}
-                canEdit={false}
-                canRevise={false}
-                onEdit={() => {}}
-                onRevise={() => {}}
-              />
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
