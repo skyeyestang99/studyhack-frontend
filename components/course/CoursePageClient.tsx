@@ -13,8 +13,7 @@ import { CourseShell } from "@/components/course/CourseShell";
 import { CourseHome } from "@/components/course/CourseHome";
 import { CourseMaterialsPanel } from "@/components/course/CourseMaterialsPanel";
 import { CourseChatPanel } from "@/components/course/CourseChatPanel";
-import { StudyToolsPanel } from "@/components/course/StudyToolsPanel";
-import { FlashcardsPanel } from "@/components/course/FlashcardsPanel";
+import { PersistedStudyGuidePanel } from "@/components/course/PersistedStudyGuidePanel";
 import { SyllabusPanel } from "@/components/course/SyllabusPanel";
 
 type CourseView =
@@ -112,12 +111,7 @@ export function CoursePageClient({ courseId, view }: CoursePageClientProps) {
           </div>
         )}
         {view === "study-guide" && (
-          <div className="space-y-6">
-            <StudyToolsPanel course={course} />
-            <FlashcardsPanel course={course} />
-            <SyllabusPanel course={course} />
-            <CourseMaterialsPanel course={course} />
-          </div>
+          <PersistedStudyGuidePanel course={course} />
         )}
         {view === "syllabus" && <SyllabusPanel course={course} />}
         {view === "settings" && (

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import DashboardPage from "@/app/dashboard/page";
@@ -19,6 +19,36 @@ vi.mock("@/hooks/useEntities", () => ({
 
 vi.mock("@/components/dashboard/ExamReminderStrip", () => ({
   ExamReminderStrip: () => <div>Exam reminders</div>,
+}));
+
+vi.mock("@/components/ui/select", () => ({
+  Select: ({
+    value,
+    onValueChange,
+    children,
+  }: {
+    value: string;
+    onValueChange: (value: string) => void;
+    children: React.ReactNode;
+  }) => (
+    <select
+      aria-label="Filter by school"
+      value={value}
+      onChange={(event) => onValueChange(event.currentTarget.value)}
+    >
+      {children}
+    </select>
+  ),
+  SelectTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  SelectValue: () => null,
+  SelectContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  SelectItem: ({
+    value,
+    children,
+  }: {
+    value: string;
+    children: React.ReactNode;
+  }) => <option value={value}>{children}</option>,
 }));
 
 vi.mock("next/link", () => ({
@@ -74,5 +104,146 @@ describe("dashboard enrollment states", () => {
     );
     expect(screen.queryByText("Exam reminders")).not.toBeInTheDocument();
     expect(screen.queryByText("No courses match this school.")).not.toBeInTheDocument();
+  });
+
+  it("limits the school filter to schools with enrolled courses", () => {
+    useEntitiesMock.mockImplementation((endpoint: string) => {
+      if (endpoint === "/api/schools") {
+        return {
+          ...loadedResult,
+          data: [
+            {
+              id: "school-ucsd",
+              name: "UC San Diego",
+              shortName: "UCSD",
+              aliases: [],
+              location: "San Diego, CA",
+              createdAt: "2026-01-01T00:00:00.000Z",
+            },
+            {
+              id: "school-uci",
+              name: "University of California, Irvine",
+              shortName: "UCI",
+              aliases: [],
+              location: "Irvine, CA",
+              createdAt: "2026-01-01T00:00:00.000Z",
+            },
+          ],
+        };
+      }
+      if (endpoint === "/api/professors") {
+        return {
+          ...loadedResult,
+          data: [
+            {
+              id: "prof-smith",
+              name: "Prof. Smith",
+              shortName: null,
+              aliases: [],
+              department: null,
+              schoolId: "school-ucsd",
+              createdAt: "2026-01-01T00:00:00.000Z",
+            },
+          ],
+        };
+      }
+      if (endpoint === "/api/courses") {
+        return {
+          ...loadedResult,
+          data: [
+            {
+              id: "course-math20d",
+              code: "MATH 20D",
+              name: "Differential Equations",
+              schoolId: "school-ucsd",
+              professorId: "prof-smith",
+              createdAt: "2026-01-01T00:00:00.000Z",
+            },
+          ],
+        };
+      }
+      return loadedResult;
+    });
+
+    render(<DashboardPage />);
+
+    expect(screen.getByRole("option", { name: "UC San Diego" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "University of California, Irvine" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Filter by school"), {
+      target: { value: "school-ucsd" },
+    });
+
+    expect(screen.getByText("Differential Equations")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Create course/i })).toHaveAttribute(
+      "href",
+      "/onboarding?schoolId=school-ucsd",
+    );
+  });
+
+  it("shows course creation when the selected school already has courses", () => {
+    useEntitiesMock.mockImplementation((endpoint: string) => {
+      if (endpoint === "/api/schools") {
+        return {
+          ...loadedResult,
+          data: [
+            {
+              id: "school-ucsd",
+              name: "UC San Diego",
+              shortName: "UCSD",
+              aliases: [],
+              location: "San Diego, CA",
+              createdAt: "2026-01-01T00:00:00.000Z",
+            },
+          ],
+        };
+      }
+      if (endpoint === "/api/professors") {
+        return {
+          ...loadedResult,
+          data: [
+            {
+              id: "prof-smith",
+              name: "Prof. Smith",
+              shortName: null,
+              aliases: [],
+              department: null,
+              schoolId: "school-ucsd",
+              createdAt: "2026-01-01T00:00:00.000Z",
+            },
+          ],
+        };
+      }
+      if (endpoint === "/api/courses") {
+        return {
+          ...loadedResult,
+          data: [
+            {
+              id: "course-math20d",
+              code: "MATH 20D",
+              name: "Differential Equations",
+              schoolId: "school-ucsd",
+              professorId: "prof-smith",
+              createdAt: "2026-01-01T00:00:00.000Z",
+            },
+          ],
+        };
+      }
+      return loadedResult;
+    });
+
+    render(<DashboardPage />);
+
+    fireEvent.change(screen.getByLabelText("Filter by school"), {
+      target: { value: "school-ucsd" },
+    });
+
+    expect(screen.getByText("Differential Equations")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Create course/i })).toHaveAttribute(
+      "href",
+      "/onboarding?schoolId=school-ucsd",
+    );
   });
 });
