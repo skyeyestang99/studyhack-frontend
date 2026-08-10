@@ -9,6 +9,7 @@ import { BookOpen, ListChecks, Loader2, Sparkles, Square } from "lucide-react";
 import { toast } from "sonner";
 import { env } from "@/lib/env";
 import { getAuthToken } from "@/lib/auth-token";
+import { resolveMaterialUrl } from "@/lib/urls";
 import type { Citation, Course, GroundingMode } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -124,7 +125,8 @@ export function StudyToolsPanel({ course }: { course: Course }) {
       if (!res.ok) throw new Error();
       const data = (await res.json()) as { previewUrl?: string };
       if (!data.previewUrl) throw new Error();
-      const url = page && page > 1 ? `${data.previewUrl}#page=${page}` : data.previewUrl;
+      const previewUrl = resolveMaterialUrl(data.previewUrl);
+      const url = page && page > 1 ? `${previewUrl}#page=${page}` : previewUrl;
       window.open(url, "_blank", "noopener");
     } catch {
       toast.error("Couldn't open that source");
@@ -192,7 +194,7 @@ export function StudyToolsPanel({ course }: { course: Course }) {
                 <GroundingBadge mode={mode.mode} topSource={mode.topSource} />
               </div>
             )}
-            <div className="prose prose-sm max-w-none dark:prose-invert">
+            <div className="prose prose-sm max-w-none">
               <Markdown
                 remarkPlugins={[remarkGfm, remarkMath]}
                 rehypePlugins={[rehypeKatex]}

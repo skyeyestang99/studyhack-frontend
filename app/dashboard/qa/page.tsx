@@ -474,7 +474,7 @@ export default function QAPage() {
                       }`}
                     >
                       {msg.role === "assistant" ? (
-                        <div className="prose prose-sm max-w-none dark:prose-invert">
+                        <div className="prose prose-sm max-w-none">
                           <Markdown
                             remarkPlugins={[remarkGfm, remarkMath]}
                             rehypePlugins={[rehypeKatex]}
@@ -496,7 +496,7 @@ export default function QAPage() {
                   <div className="flex justify-start">
                     <div className="max-w-[80%] rounded-lg bg-muted px-4 py-2">
                       {streamingText ? (
-                        <div className="prose prose-sm max-w-none dark:prose-invert">
+                        <div className="prose prose-sm max-w-none">
                           <Markdown
                             remarkPlugins={[remarkGfm, remarkMath]}
                             rehypePlugins={[rehypeKatex]}

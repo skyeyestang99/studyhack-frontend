@@ -101,7 +101,7 @@ export const mockMaterials: StudyMaterialResponse[] = [
     fileName: "CSE101 Syllabus.docx",
     courseName: "Design and Analysis of Algorithms",
     courseId: "course-cse101",
-    materialType: "NOTES",
+    materialType: "SYLLABUS",
     status: "READY",
     previewUrl: null,
     downloadUrl: null,

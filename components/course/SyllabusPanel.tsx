@@ -9,6 +9,7 @@ import type { SyllabusEvent } from "@/lib/mock-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { UploadDialog } from "@/components/dashboard/UploadDialog";
 import {
   StudyGuideMode,
   StudyGuideModeToggle,
@@ -45,6 +46,7 @@ export function SyllabusPanel({ course, compact = false }: SyllabusPanelProps) {
   const [type, setType] = useState("MIDTERM");
   const [dueAt, setDueAt] = useState("");
   const [saving, setSaving] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
 
   const loadEvents = useCallback(async () => {
     try {
@@ -102,13 +104,18 @@ export function SyllabusPanel({ course, compact = false }: SyllabusPanelProps) {
     }
   };
 
-  const upcomingExam = useMemo(
-    () =>
-      events.find(
-        (event) => examTypes.has(event.type) && daysUntil(event.dueAt) >= 0,
-      ),
-    [events],
-  );
+  const highlightedExam = useMemo(() => {
+    const exams = events.filter((event) => examTypes.has(event.type));
+    return (
+      exams.find((event) => daysUntil(event.dueAt) >= 0) ??
+      exams
+        .filter((event) => daysUntil(event.dueAt) < 0)
+        .sort(
+          (a, b) =>
+            new Date(b.dueAt).getTime() - new Date(a.dueAt).getTime(),
+        )[0]
+    );
+  }, [events]);
   const visibleEvents = compact ? events.slice(0, 4) : events;
 
   return (
@@ -125,14 +132,20 @@ export function SyllabusPanel({ course, compact = false }: SyllabusPanelProps) {
               course materials.
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => setShowForm((s) => !s)}>
-            {showForm ? (
-              <X className="mr-2 h-4 w-4" />
-            ) : (
-              <Plus className="mr-2 h-4 w-4" />
-            )}
-            {showForm ? "Cancel" : "Add date"}
-          </Button>
+          <div className="flex shrink-0 gap-2">
+            <Button variant="outline" size="sm" onClick={() => setUploadOpen(true)}>
+              <FileText className="mr-2 h-4 w-4" />
+              Upload syllabus
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowForm((s) => !s)}>
+              {showForm ? (
+                <X className="mr-2 h-4 w-4" />
+              ) : (
+                <Plus className="mr-2 h-4 w-4" />
+              )}
+              {showForm ? "Cancel" : "Add exam date"}
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -174,18 +187,43 @@ export function SyllabusPanel({ course, compact = false }: SyllabusPanelProps) {
           </div>
         )}
 
-        {upcomingExam && daysUntil(upcomingExam.dueAt) <= 14 && (
-          <div className="rounded-2xl border bg-neutral-950 p-4 text-white shadow-sm">
+        {highlightedExam && (
+          <div
+            className={
+              daysUntil(highlightedExam.dueAt) >= 0 &&
+              daysUntil(highlightedExam.dueAt) <= 14
+                ? "rounded-2xl border bg-neutral-950 p-4 text-white shadow-sm"
+                : "rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950 shadow-sm"
+            }
+          >
             <p className="text-sm font-medium">
-              {upcomingExam.title} is in {daysUntil(upcomingExam.dueAt)} days
+              {daysUntil(highlightedExam.dueAt) >= 0
+                ? `${highlightedExam.title} is in ${daysUntil(
+                    highlightedExam.dueAt,
+                  )} days`
+                : `${highlightedExam.title} was ${Math.abs(
+                    daysUntil(highlightedExam.dueAt),
+                  )} days ago`}
             </p>
-            <p className="mt-1 text-sm text-white/70">
-              {formatDate(upcomingExam.dueAt)}
+            <p
+              className={
+                daysUntil(highlightedExam.dueAt) >= 0 &&
+                daysUntil(highlightedExam.dueAt) <= 14
+                  ? "mt-1 text-sm text-white/70"
+                  : "mt-1 text-sm text-amber-800"
+              }
+            >
+              {formatDate(highlightedExam.dueAt)}
+              {daysUntil(highlightedExam.dueAt) < 0
+                ? " · already passed. Add a future exam date to enable countdowns."
+                : ""}
             </p>
-            <Button className="mt-3 bg-white text-neutral-950 hover:bg-white/90" size="sm">
-              <Sparkles className="mr-2 h-4 w-4" />
-              Generate Study Guide
-            </Button>
+            {daysUntil(highlightedExam.dueAt) >= 0 && (
+              <Button className="mt-3 bg-white text-neutral-950 hover:bg-white/90" size="sm">
+                <Sparkles className="mr-2 h-4 w-4" />
+                Generate Study Guide
+              </Button>
+            )}
           </div>
         )}
 
@@ -194,7 +232,11 @@ export function SyllabusPanel({ course, compact = false }: SyllabusPanelProps) {
         ) : visibleEvents.length === 0 ? (
           <div className="rounded-xl border bg-neutral-50 p-4 text-sm text-muted-foreground">
             <FileText className="mb-2 h-5 w-5" />
-            Upload a syllabus to unlock homework, midterm, and final reminders.
+            <p className="font-medium text-foreground">No syllabus dates yet</p>
+            <p className="mt-1">
+              Upload your syllabus as a course material, then add exam dates
+              from the top action when you want Study Guide countdowns.
+            </p>
           </div>
         ) : (
           <div className="divide-y overflow-hidden rounded-xl border bg-white">
@@ -228,6 +270,14 @@ export function SyllabusPanel({ course, compact = false }: SyllabusPanelProps) {
           </div>
         )}
       </CardContent>
+      <UploadDialog
+        open={uploadOpen}
+        onOpenChange={setUploadOpen}
+        onSuccess={() => setUploadOpen(false)}
+        courseId={course.id}
+        courseLabel={`${course.code} — ${course.name}`}
+        defaultMaterialType="SYLLABUS"
+      />
     </Card>
   );
 }

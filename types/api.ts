@@ -15,6 +15,8 @@ export interface ApiError {
   path: string;
   errors?: ValidationError[];
   candidates?: EntitySearchResponse<School | Professor | Course>;
+  code?: string;
+  details?: Record<string, unknown>;
 }
 
 export interface ValidationError {
@@ -200,16 +202,110 @@ export interface StudyMaterialResponse {
   fileName: string;
   courseName: string;
   courseId: string;
-  materialType: "HOMEWORK" | "PPT" | "EXAM" | "NOTES";
+  materialType: "HOMEWORK" | "PPT" | "EXAM" | "NOTES" | "SYLLABUS";
   status: "VALIDATING" | "READY" | "REJECTED" | "QUARANTINED" | "FAILED";
   previewUrl?: string | null;
   downloadUrl?: string | null;
   contentType?: string | null;
   rejectionReason: string | null;
+  embeddingError?: string | null;
+  embeddingAttempts?: number;
+  lastAttemptedAt?: string | null;
   createdAt: string;
 }
 
 export interface MaterialUploadResponse {
   id: string;
   status: string;
+}
+
+export type StudyGuideStatus = "queued" | "generating" | "ready" | "failed";
+export type StudyGuideRetrievalMode = "personal" | "course";
+
+export interface StudyGuideSource {
+  materialId: string;
+  page: number | null;
+  snippet: string;
+  score: number;
+}
+
+export interface StudyGuideConcept {
+  id: string;
+  logicalConceptId: string;
+  title: string;
+  category: string | null;
+  summary: string;
+  contentOrigin: "generated" | "user_edit" | "ai_revision";
+  keyPoints: string[];
+  sources: StudyGuideSource[];
+}
+
+export interface StudyGuideVersion {
+  id: string;
+  guideId: string;
+  versionNumber: number;
+  origin: "generated" | "user_edit" | "ai_revision";
+  baseVersionId: string | null;
+  title: string;
+  summary: string;
+  concepts: StudyGuideConcept[];
+  createdAt: string;
+}
+
+export interface StudyGuideVersionMeta {
+  id: string;
+  guideId: string;
+  versionNumber: number;
+  origin: "generated" | "user_edit" | "ai_revision";
+  baseVersionId: string | null;
+  createdAt: string;
+}
+
+export interface StudyGuide {
+  id: string;
+  courseId: string;
+  target: string;
+  retrievalMode: StudyGuideRetrievalMode;
+  status: StudyGuideStatus;
+  errorCode: string | null;
+  errorMessage: string | null;
+  currentVersionId: string | null;
+  currentVersion?: StudyGuideVersion | null;
+  createdAt: string;
+  updatedAt: string;
+  readyAt?: string | null;
+}
+
+export interface StudyGuideListItem {
+  id: string;
+  courseId: string;
+  target: string;
+  retrievalMode: StudyGuideRetrievalMode;
+  status: StudyGuideStatus;
+  currentVersionId: string | null;
+  title: string | null;
+  createdAt: string;
+  updatedAt: string;
+  readyAt: string | null;
+}
+
+export interface CreateStudyGuideResponse {
+  guideId: string;
+  courseId: string;
+  target: string;
+  retrievalMode: StudyGuideRetrievalMode;
+  status: StudyGuideStatus;
+  createdAt: string;
+}
+
+export interface StudyGuideRevision {
+  id: string;
+  guideId: string;
+  baseVersionId: string;
+  resultVersionId: string | null;
+  status: "queued" | "running" | "completed" | "failed";
+  errorCode: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
 }
