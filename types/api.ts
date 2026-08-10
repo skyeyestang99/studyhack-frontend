@@ -309,3 +309,27 @@ export interface StudyGuideRevision {
   startedAt: string | null;
   completedAt: string | null;
 }
+
+export interface ExamInsightSource {
+  materialId: string;
+  fileName: string;
+  page?: number;
+}
+
+export interface ExamInsightTopic {
+  topic: string;
+  /** The observed FORM this instructor tests it in — the differentiated part. */
+  howItsTested: string;
+  /** Distinct assessment documents the topic appeared in. */
+  appearances: number;
+  sources: ExamInsightSource[];
+}
+
+export interface ExamInsights {
+  summary: string;
+  topics: ExamInsightTopic[];
+  /** How many assessment docs backed the analysis — the UI stays candid when thin. */
+  assessmentCount: number;
+  chunkCount: number;
+  cached?: boolean;
+}

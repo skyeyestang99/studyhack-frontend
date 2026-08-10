@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { CourseChatPanel } from "@/components/course/CourseChatPanel";
 import { CourseMaterialsPanel } from "@/components/course/CourseMaterialsPanel";
+import { ExamInsightsPanel } from "@/components/course/ExamInsightsPanel";
 import { SyllabusPanel } from "@/components/course/SyllabusPanel";
 
 interface CourseHomeProps {
@@ -79,6 +80,7 @@ export function CourseHome({ course, school, professor }: CourseHomeProps) {
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-6">
+          <ExamInsightsPanel course={course} />
           <CourseMaterialsPanel course={course} compact />
           <CourseChatPanel course={course} compact />
           <SyllabusPanel course={course} compact />
