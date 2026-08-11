@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { BookOpen, FileText, MessageCircleQuestion, Plus } from "lucide-react";
 import type { School, Professor, Course } from "@/types/api";
 import { ExamReminderStrip } from "@/components/dashboard/ExamReminderStrip";
+import { QuickHelpPanel } from "@/components/dashboard/QuickHelpPanel";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -158,6 +159,11 @@ export default function DashboardPage() {
       {courses.data.length > 0 && (
         <ExamReminderStrip courses={visibleCourses} />
       )}
+
+      {/* Above the course list on purpose: a student with nothing set up still
+          has something useful to do, which is the whole point of the zero-setup
+          path. */}
+      <QuickHelpPanel hasCourses={courses.data.length > 0} />
 
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-4">
