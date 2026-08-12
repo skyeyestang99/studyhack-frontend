@@ -19,8 +19,40 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "StudyHack - AI-Powered Homework Guidance",
-  description: "Get personalized homework help powered by AI",
+  // Template so course/dashboard pages can set their own title without repeating
+  // the brand, and social cards get a real title/description/image instead of
+  // unfurling as nothing when an invite link is pasted into a group chat.
+  title: {
+    default: "StudyHack — homework help that knows your class",
+    template: "%s · StudyHack",
+  },
+  description:
+    "Homework help grounded in your own course materials, with citations — plus what your professor actually tests.",
+  applicationName: "StudyHack",
+  openGraph: {
+    title: "StudyHack — homework help that knows your class",
+    description:
+      "Answers cited from your own course materials, plus what your professor actually tests.",
+    siteName: "StudyHack",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "StudyHack — homework help that knows your class",
+    description:
+      "Answers cited from your own course materials, plus what your professor actually tests.",
+  },
+};
+
+export const viewport = {
+  // Lets the app fill the screen when launched from the home screen, and keeps the
+  // browser UI colour consistent with the brand.
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f7f4ec" },
+    { media: "(prefers-color-scheme: dark)", color: "#141312" },
+  ],
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({

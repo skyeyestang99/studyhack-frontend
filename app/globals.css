@@ -98,3 +98,62 @@
 .prose {
   overflow-wrap: anywhere;
 }
+
+/* Respect a user's reduced-motion preference. The streaming caret, spinners and
+   transitions are decorative; for someone with vestibular sensitivity they are a
+   reason to close the tab. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Print styles. Students print study guides to annotate them, and the default
+   output wasted most of the page on app chrome. Hide navigation, drop the dark
+   surfaces, and avoid splitting a worked solution across a page break. */
+@media print {
+  nav,
+  aside,
+  footer,
+  [data-print-hide] {
+    display: none !important;
+  }
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+  /* The app shell pins height to the viewport; printing needs natural flow. */
+  .h-dvh,
+  .h-screen,
+  .overflow-hidden,
+  .overflow-y-auto {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .shadow-sm,
+  .shadow {
+    box-shadow: none !important;
+  }
+  .prose pre,
+  .prose table,
+  .katex-display,
+  li,
+  blockquote {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  a[href]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.85em;
+    color: #555;
+  }
+}
