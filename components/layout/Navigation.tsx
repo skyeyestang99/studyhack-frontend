@@ -27,10 +27,10 @@ export default function Navigation() {
     <header className="h-16 border-b border-border bg-card/95 backdrop-blur">
       <nav className="mx-auto flex h-full max-w-none items-center justify-between px-6 md:px-8">
         <Link href="/" className="flex items-center gap-2 text-xl font-bold tracking-tight text-foreground">
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-amber-500">
+          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-brand/100">
             <Zap className="h-4 w-4 fill-white text-white" />
           </span>
-          StudyAI
+          StudyHack
         </Link>
 
         <div className="hidden items-center gap-1 md:flex">

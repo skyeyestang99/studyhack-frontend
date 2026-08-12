@@ -45,7 +45,7 @@ export default function Home() {
           AI-Powered Homework Guidance
         </h1>
         <p className="mt-4 text-lg text-muted-foreground">
-          StudyAI helps college students learn smarter with personalized,
+          StudyHack helps college students learn smarter with personalized,
           AI-driven homework assistance. Get step-by-step guidance tailored to
           your courses, professors, and learning style.
         </p>

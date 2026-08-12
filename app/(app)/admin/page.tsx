@@ -68,7 +68,7 @@ export default function AdminReviewPage() {
                 <CardHeader className="pb-2">
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     {it.reported && (
-                      <span className="rounded bg-amber-100 px-2 py-0.5 text-amber-800">
+                      <span className="rounded bg-brand/15 px-2 py-0.5 text-brand-foreground">
                         reported
                       </span>
                     )}
@@ -78,12 +78,12 @@ export default function AdminReviewPage() {
                       </span>
                     )}
                     {it.mode && (
-                      <span className="rounded bg-neutral-100 px-2 py-0.5 text-neutral-700">
+                      <span className="rounded bg-muted px-2 py-0.5 text-muted-foreground">
                         {it.mode}
                       </span>
                     )}
                     {it.verified && (
-                      <span className="rounded bg-emerald-100 px-2 py-0.5 text-emerald-800">
+                      <span className="rounded bg-grounded/15 px-2 py-0.5 text-grounded-foreground">
                         ✓ checked
                       </span>
                     )}
@@ -92,11 +92,11 @@ export default function AdminReviewPage() {
                     </span>
                   </div>
                   {it.reason && (
-                    <p className="mt-1 text-sm text-amber-800">“{it.reason}”</p>
+                    <p className="mt-1 text-sm text-brand-foreground">“{it.reason}”</p>
                   )}
                 </CardHeader>
                 <CardContent>
-                  <p className="line-clamp-6 whitespace-pre-wrap text-sm text-neutral-700">
+                  <p className="line-clamp-6 whitespace-pre-wrap text-sm text-muted-foreground">
                     {it.answer}
                   </p>
                 </CardContent>

@@ -22,14 +22,14 @@ export function GroundingBadge({
         : "From your course materials",
     },
     partial: {
-      cls: "border-amber-200 bg-amber-50 text-amber-800",
+      cls: "border-brand/40 bg-brand/10 text-brand-foreground",
       Icon: CircleAlert,
       label: topSource
         ? `Loosely related to your materials — ${topSource}`
         : "Loosely related to your materials",
     },
     general: {
-      cls: "border-neutral-200 bg-neutral-100 text-neutral-700",
+      cls: "border-border bg-muted text-muted-foreground",
       Icon: Info,
       label: "General answer — not found in your uploaded materials",
     },
@@ -37,7 +37,7 @@ export function GroundingBadge({
 
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${config.cls}`}
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${config.cls}`}
     >
       <config.Icon className="h-3 w-3" />
       {config.label}

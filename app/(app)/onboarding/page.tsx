@@ -647,16 +647,16 @@ function CourseRowEditor({
                     <span className="block text-xs text-muted-foreground">
                       {course.name}
                     </span>
-                    <span className="mt-2 flex items-start gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-xs text-emerald-950">
+                    <span className="mt-2 flex items-start gap-2 rounded-md border border-grounded/40 bg-grounded/10 px-2.5 py-2 text-xs text-grounded-foreground">
                       <UsersRound
-                        className="mt-0.5 size-3.5 shrink-0 text-emerald-700"
+                        className="mt-0.5 size-3.5 shrink-0 text-grounded"
                         aria-hidden="true"
                       />
                       <span className="min-w-0">
                         <span className="block font-medium">
                           {community.label}
                         </span>
-                        <span className="block text-emerald-800">
+                        <span className="block text-grounded-foreground">
                           {community.detail}
                         </span>
                       </span>

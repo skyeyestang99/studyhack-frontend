@@ -37,6 +37,48 @@
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
     --radius: 0.5rem;
+
+    /* Brand + semantic answer-grounding colours.
+       Amber was already appearing ad hoc across Quick Help and warning states,
+       and green in grounded badges, without either being a token. Promoting them
+       makes the meaning enforceable instead of a convention:
+         brand    = attention / general (unsourced) answers
+         grounded = answer backed by the student's own course material
+       muted-foreground is darkened from 45% to 38% so small text clears WCAG AA
+       on the cream background. */
+    --brand: 32 95% 44%;
+    --brand-foreground: 26 90% 24%;
+    --grounded: 152 69% 31%;
+    --grounded-foreground: 155 70% 18%;
+    --muted-foreground: 0 0% 38%;
+  }
+
+  .dark {
+    /* darkMode: ["class"] was configured with no token block, so toggling did
+       nothing. Students work late; a light-only cream UI is a real complaint. */
+    --background: 30 8% 8%;
+    --foreground: 40 12% 92%;
+    --card: 30 7% 11%;
+    --card-foreground: 40 12% 92%;
+    --popover: 30 7% 11%;
+    --popover-foreground: 40 12% 92%;
+    --primary: 40 12% 92%;
+    --primary-foreground: 30 8% 10%;
+    --secondary: 30 6% 17%;
+    --secondary-foreground: 40 12% 92%;
+    --muted: 30 6% 17%;
+    --muted-foreground: 40 6% 65%;
+    --accent: 30 6% 20%;
+    --accent-foreground: 40 12% 92%;
+    --destructive: 0 62% 52%;
+    --destructive-foreground: 40 12% 96%;
+    --border: 30 5% 22%;
+    --input: 30 5% 24%;
+    --ring: 40 10% 70%;
+    --brand: 36 92% 56%;
+    --brand-foreground: 38 96% 84%;
+    --grounded: 152 55% 48%;
+    --grounded-foreground: 152 60% 82%;
   }
 }
 

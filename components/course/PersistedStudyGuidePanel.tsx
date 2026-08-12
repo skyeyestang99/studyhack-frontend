@@ -84,19 +84,19 @@ async function openSource(materialId: string, page?: number | null) {
 
 function statusTone(status: StudyGuide["status"]) {
   if (status === "ready") {
-    return "text-emerald-600 bg-emerald-50 border-emerald-200";
+    return "text-grounded bg-grounded/10 border-grounded/40";
   }
   if (status === "failed") {
     return "text-red-600 bg-red-50 border-red-200";
   }
-  return "text-amber-700 bg-amber-50 border-amber-200";
+  return "text-brand-foreground bg-brand/10 border-brand/40";
 }
 
 function conceptTone(index: number) {
   const tones = [
-    "bg-amber-50 text-amber-700 border-amber-200",
+    "bg-brand/10 text-brand-foreground border-brand/40",
     "bg-sky-50 text-sky-700 border-sky-200",
-    "bg-emerald-50 text-emerald-700 border-emerald-200",
+    "bg-grounded/10 text-grounded border-grounded/40",
     "bg-violet-50 text-violet-700 border-violet-200",
   ];
   return tones[index % tones.length];
@@ -659,7 +659,7 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
               )}
             >
               {!guidesCollapsed && (
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Guides
                 </p>
               )}
@@ -681,7 +681,7 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
               {guides.length === 0 && !loading && (
                 <div
                   className={cn(
-                    "rounded-md border border-dashed border-neutral-300 text-xs text-neutral-500",
+                    "rounded-md border border-dashed border-input text-xs text-muted-foreground",
                     guidesCollapsed
                       ? "flex h-10 items-center justify-center"
                       : "px-3 py-4",
@@ -697,7 +697,7 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                   onClick={() => setSelectedGuideId(item.id)}
                   className={`w-full rounded-md text-left transition-colors ${
                     item.id === selectedGuideId
-                      ? "bg-amber-100 text-amber-800"
+                      ? "bg-brand/15 text-brand-foreground"
                       : "text-muted-foreground hover:bg-card hover:text-foreground"
                   } ${guidesCollapsed ? "flex h-10 items-center justify-center px-0 py-0" : "px-3 py-2"}`}
                   title={`${item.title || item.target} — ${item.status} · ${item.retrievalMode}`}
@@ -711,7 +711,7 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                     )}
                   </div>
                   {!guidesCollapsed && (
-                    <p className="mt-1 truncate pl-5 font-mono text-[10px] opacity-70">
+                    <p className="mt-1 truncate pl-5 font-mono text-xs opacity-70">
                       {item.status} · {item.retrievalMode}
                     </p>
                   )}
@@ -727,7 +727,7 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                 <ChevronRight className="h-3 w-3 opacity-50" />
                 <span className="truncate">{course.name}</span>
                 <ChevronRight className="h-3 w-3 opacity-50" />
-                <span className="truncate font-medium text-amber-700">
+                <span className="truncate font-medium text-brand-foreground">
                   {currentVersion?.title ?? selectedLabel}
                 </span>
                 <div className="ml-auto hidden shrink-0 items-center gap-2 sm:flex">
@@ -761,7 +761,7 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                   Study Guide
                 </h1>
                 {currentVersion && !isViewingCurrentVersion && (
-                  <span className="rounded border border-violet-200 bg-violet-50 px-2 py-1 text-[10px] font-medium text-violet-700">
+                  <span className="rounded border border-violet-200 bg-violet-50 px-2 py-1 text-xs font-medium text-violet-700">
                     Historical
                   </span>
                 )}
@@ -772,7 +772,7 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                   <div
                     className={cn(
                       "flex min-h-[126px] max-w-sm items-center gap-4 rounded-xl border bg-card px-4 py-3 shadow-sm",
-                      countdown.isPast ? "border-amber-200" : "border-border",
+                      countdown.isPast ? "border-brand/40" : "border-border",
                     )}
                   >
                     <div
@@ -780,7 +780,7 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                         "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
                         countdown.isPast
                           ? "bg-red-50 text-red-600"
-                          : "bg-amber-50 text-amber-600",
+                          : "bg-brand/10 text-brand",
                       )}
                     >
                       <CalendarClock className="h-5 w-5" />
@@ -822,7 +822,7 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                   <Button
                     onClick={createGuide}
                     disabled={creating}
-                    className="mt-3 h-10 w-full bg-amber-500 text-base text-white hover:bg-amber-600"
+                    className="mt-3 h-10 w-full bg-brand/100 text-base text-white hover:bg-brand"
                   >
                     {creating ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -841,7 +841,7 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                     onClick={() => setActiveTab(tab)}
                     className={`rounded px-3 py-1.5 text-xs font-medium capitalize transition-colors ${
                       activeTab === tab
-                        ? "bg-amber-500 text-white"
+                        ? "bg-brand/100 text-white"
                         : "text-muted-foreground hover:bg-accent hover:text-foreground"
                     }`}
                   >
@@ -872,13 +872,13 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
               )}
 
               {guide && isWorking && (
-                <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-                  <Loader2 className="mt-0.5 h-4 w-4 animate-spin text-amber-700" />
+                <div className="flex items-start gap-3 rounded-lg border border-brand/40 bg-brand/10 px-4 py-3">
+                  <Loader2 className="mt-0.5 h-4 w-4 animate-spin text-brand-foreground" />
                   <div>
-                    <p className="text-sm font-medium text-amber-900">
+                    <p className="text-sm font-medium text-brand-foreground">
                       Generating from course materials
                     </p>
-                    <p className="mt-1 text-xs text-amber-800">
+                    <p className="mt-1 text-xs text-brand-foreground">
                       {guidePollingTimedOut
                         ? "Automatic refresh paused after several attempts. Use Refresh status to check again."
                         : "This guide is durable. You can leave the page and reopen it later."}
@@ -888,19 +888,19 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
               )}
 
               {hasNewVersionAvailable && (
-                <div className="flex items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-grounded/40 bg-grounded/10 px-4 py-3">
                   <div>
-                    <p className="text-sm font-medium text-emerald-900">
+                    <p className="text-sm font-medium text-grounded-foreground">
                       New version available
                     </p>
-                    <p className="mt-1 text-xs text-emerald-800">
+                    <p className="mt-1 text-xs text-grounded-foreground">
                       Your current view was preserved while generation finished.
                     </p>
                   </div>
                   <Button
                     type="button"
                     size="sm"
-                    className="shrink-0 bg-emerald-600 text-white hover:bg-emerald-700"
+                    className="shrink-0 bg-grounded text-white hover:bg-grounded"
                     onClick={viewLatestGuide}
                   >
                     View latest
@@ -919,9 +919,9 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
 
               {currentVersion && activeTab === "concepts" && (
                 <>
-                  <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-                    <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
-                    <p className="text-xs leading-relaxed text-neutral-600">
+                  <div className="flex items-start gap-3 rounded-lg border border-brand/40 bg-brand/10 px-4 py-3">
+                    <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-brand-foreground" />
+                    <p className="text-xs leading-relaxed text-muted-foreground">
                       Grounded in{" "}
                       <span className="font-medium text-foreground">
                         {guide?.retrievalMode === "personal"
@@ -986,14 +986,14 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
           <aside className="border-t border-border bg-secondary lg:border-l lg:border-t-0">
             <div className="border-b border-border px-4 py-3">
               <div className="flex items-center gap-2">
-                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100">
-                  <Bot className="h-3.5 w-3.5 text-emerald-700" />
+                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-grounded/15">
+                  <Bot className="h-3.5 w-3.5 text-grounded" />
                 </div>
                 <div>
                   <p className="text-xs font-semibold">Guide Assistant</p>
-                  <p className="text-[10px] text-muted-foreground">Scoped to this course</p>
+                  <p className="text-xs text-muted-foreground">Scoped to this course</p>
                 </div>
-                <div className="ml-auto h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                <div className="ml-auto h-1.5 w-1.5 rounded-full bg-grounded/100" />
               </div>
             </div>
 
@@ -1074,7 +1074,7 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                         className={cn(
                           "w-full rounded-lg border px-3 py-2 text-left text-xs transition-colors",
                           selected
-                            ? "border-amber-300 bg-amber-50 text-amber-800"
+                            ? "border-brand/40 bg-brand/10 text-brand-foreground"
                             : "border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground",
                         )}
                         title={`Version ${version.versionNumber} · ${version.origin}`}
@@ -1084,11 +1084,11 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                             v{version.versionNumber}
                             {isCurrent ? " current" : ""}
                           </span>
-                          <span className="font-mono text-[10px] opacity-70">
+                          <span className="font-mono text-xs opacity-70">
                             {version.origin.replace("_", " ")}
                           </span>
                         </span>
-                        <span className="mt-1 block truncate text-[10px] opacity-70">
+                        <span className="mt-1 block truncate text-xs opacity-70">
                           {new Date(version.createdAt).toLocaleString()}
                         </span>
                       </button>
@@ -1109,9 +1109,9 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
               </div>
 
               {editingGuide && (
-                <div className="rounded-xl border border-amber-200 bg-card p-4">
+                <div className="rounded-xl border border-brand/40 bg-card p-4">
                   <p className="text-xs font-semibold">Edit guide overview</p>
-                  <label className="mt-3 block text-[11px] font-medium text-muted-foreground">
+                  <label className="mt-3 block text-xs font-medium text-muted-foreground">
                     Title
                   </label>
                   <Input
@@ -1120,14 +1120,14 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                     disabled={editRunning}
                     className="mt-1 h-9 bg-background text-sm"
                   />
-                  <label className="mt-3 block text-[11px] font-medium text-muted-foreground">
+                  <label className="mt-3 block text-xs font-medium text-muted-foreground">
                     Summary
                   </label>
                   <textarea
                     value={guideSummaryDraft}
                     onChange={(event) => setGuideSummaryDraft(event.target.value)}
                     disabled={editRunning}
-                    className="mt-1 min-h-24 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-amber-500"
+                    className="mt-1 min-h-24 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-brand"
                   />
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     <Button
@@ -1143,7 +1143,7 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                     <Button
                       type="button"
                       size="sm"
-                      className="bg-amber-500 text-white hover:bg-amber-600"
+                      className="bg-brand/100 text-white hover:bg-brand"
                       onClick={saveGuideEdit}
                       disabled={editRunning}
                     >
@@ -1155,12 +1155,12 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
               )}
 
               {editConcept && (
-                <div className="rounded-xl border border-amber-200 bg-card p-4">
+                <div className="rounded-xl border border-brand/40 bg-card p-4">
                   <p className="text-xs font-semibold">Edit concept</p>
-                  <p className="mt-1 truncate text-[11px] text-muted-foreground">
+                  <p className="mt-1 truncate text-xs text-muted-foreground">
                     {editConcept.title}
                   </p>
-                  <label className="mt-3 block text-[11px] font-medium text-muted-foreground">
+                  <label className="mt-3 block text-xs font-medium text-muted-foreground">
                     Title
                   </label>
                   <Input
@@ -1169,7 +1169,7 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                     disabled={editRunning}
                     className="mt-1 h-9 bg-background text-sm"
                   />
-                  <label className="mt-3 block text-[11px] font-medium text-muted-foreground">
+                  <label className="mt-3 block text-xs font-medium text-muted-foreground">
                     Category
                   </label>
                   <Input
@@ -1178,23 +1178,23 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                     disabled={editRunning}
                     className="mt-1 h-9 bg-background text-sm"
                   />
-                  <label className="mt-3 block text-[11px] font-medium text-muted-foreground">
+                  <label className="mt-3 block text-xs font-medium text-muted-foreground">
                     Summary
                   </label>
                   <textarea
                     value={editSummary}
                     onChange={(event) => setEditSummary(event.target.value)}
                     disabled={editRunning}
-                    className="mt-1 min-h-24 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-amber-500"
+                    className="mt-1 min-h-24 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-brand"
                   />
-                  <label className="mt-3 block text-[11px] font-medium text-muted-foreground">
+                  <label className="mt-3 block text-xs font-medium text-muted-foreground">
                     Key points
                   </label>
                   <textarea
                     value={editKeyPoints}
                     onChange={(event) => setEditKeyPoints(event.target.value)}
                     disabled={editRunning}
-                    className="mt-1 min-h-28 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs outline-none focus:ring-1 focus:ring-amber-500"
+                    className="mt-1 min-h-28 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs outline-none focus:ring-1 focus:ring-brand"
                     placeholder="One key point per line"
                   />
                   <div className="mt-3 grid grid-cols-2 gap-2">
@@ -1211,7 +1211,7 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                     <Button
                       type="button"
                       size="sm"
-                      className="bg-amber-500 text-white hover:bg-amber-600"
+                      className="bg-brand/100 text-white hover:bg-brand"
                       onClick={saveConceptEdit}
                       disabled={editRunning}
                     >
@@ -1223,11 +1223,11 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
               )}
 
               {revisionConcept && (
-                <div className="rounded-xl border border-amber-200 bg-card p-4">
+                <div className="rounded-xl border border-brand/40 bg-card p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-xs font-semibold">Revise selected concept</p>
-                      <p className="mt-1 text-[11px] text-muted-foreground">
+                      <p className="mt-1 text-xs text-muted-foreground">
                         {revisionConcept.title}
                       </p>
                     </div>
@@ -1243,12 +1243,12 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                     onChange={(event) => setRevisionInstruction(event.target.value)}
                     placeholder="Make this easier, add steps, clarify notation..."
                     disabled={revisionRunning}
-                    className="mt-3 min-h-24 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-amber-500"
+                    className="mt-3 min-h-24 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-brand"
                   />
                   <Button
                     onClick={submitRevision}
                     disabled={revisionRunning || !revisionInstruction.trim()}
-                    className="mt-3 w-full bg-amber-500 text-white hover:bg-amber-600"
+                    className="mt-3 w-full bg-brand/100 text-white hover:bg-brand"
                     size="sm"
                   >
                     {revisionRunning ? (
@@ -1278,10 +1278,10 @@ export function PersistedStudyGuidePanel({ course }: { course: Course }) {
                       className="w-full rounded-lg border border-border bg-background px-3 py-2 text-left hover:bg-accent"
                       title={source.snippet}
                     >
-                      <span className="block font-mono text-[10px] text-amber-700">
+                      <span className="block font-mono text-xs text-brand-foreground">
                         {sourceLabel(source, index)} · {Math.round(source.score * 100)}%
                       </span>
-                      <span className="mt-1 line-clamp-2 block text-[11px] leading-relaxed text-muted-foreground">
+                      <span className="mt-1 line-clamp-2 block text-xs leading-relaxed text-muted-foreground">
                         {source.snippet}
                       </span>
                     </button>
@@ -1332,14 +1332,14 @@ function ConceptCard({
               {concept.title}
             </h3>
             <span
-              className={`rounded border px-1.5 py-0.5 font-mono text-[10px] font-medium ${conceptTone(
+              className={`rounded border px-1.5 py-0.5 font-mono text-xs font-medium ${conceptTone(
                 index,
               )}`}
             >
               {concept.category || "Concept"}
             </span>
             {concept.contentOrigin !== "generated" && (
-              <span className="rounded border border-violet-200 bg-violet-50 px-1.5 py-0.5 font-mono text-[10px] text-violet-700">
+              <span className="rounded border border-violet-200 bg-violet-50 px-1.5 py-0.5 font-mono text-xs text-violet-700">
                 {concept.contentOrigin.replace("_", " ")}
               </span>
             )}
@@ -1372,7 +1372,7 @@ function ConceptCard({
         <div className="space-y-2">
           {concept.keyPoints.map((point, pointIndex) => (
             <div key={pointIndex} className="flex gap-2">
-              <div className="mt-2 h-1 w-1 shrink-0 rounded-full bg-amber-500/70" />
+              <div className="mt-2 h-1 w-1 shrink-0 rounded-full bg-brand/100/70" />
               <p className="text-xs leading-relaxed text-foreground">{point}</p>
             </div>
           ))}
@@ -1381,7 +1381,7 @@ function ConceptCard({
         <div className="flex items-center gap-2 border-t border-border pt-3">
           <FileText className="h-3.5 w-3.5 text-muted-foreground" />
           {concept.sources.length === 0 ? (
-            <span className="font-mono text-[11px] text-muted-foreground">No sources</span>
+            <span className="font-mono text-xs text-muted-foreground">No sources</span>
           ) : (
             <div className="flex flex-wrap gap-1.5">
               {concept.sources.map((source, sourceIndex) => (
@@ -1392,7 +1392,7 @@ function ConceptCard({
                       toast.error("Could not open that source"),
                     )
                   }
-                  className="rounded border border-border bg-secondary px-2 py-1 font-mono text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                  className="rounded border border-border bg-secondary px-2 py-1 font-mono text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
                   title={source.snippet}
                 >
                   {sourceLabel(source, sourceIndex)}

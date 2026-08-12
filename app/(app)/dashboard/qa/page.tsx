@@ -397,7 +397,7 @@ export default function QAPage() {
           <h2 className="flex-1 truncate text-sm font-semibold">
             {activeConversation?.title || "Homework Q&A"}
           </h2>
-          <Button variant="ghost" size="sm" onClick={handleStartNewChat}>
+          <Button variant="ghost" size="sm" onClick={handleStartNewChat} aria-label="Start a new chat">
             <Plus className="h-4 w-4" />
           </Button>
         </div>

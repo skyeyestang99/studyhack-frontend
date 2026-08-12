@@ -37,6 +37,7 @@ export function CourseShell({
   const pathname = usePathname();
   const baseHref = `/courses/${course.id}`;
   const isStudyGuide = pathname.startsWith(`${baseHref}/study-guide`);
+  const isChat = pathname.startsWith(`${baseHref}/chat`);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(isStudyGuide);
 
   useEffect(() => {
@@ -44,8 +45,8 @@ export function CourseShell({
   }, [isStudyGuide]);
 
   return (
-    <div className="flex min-h-full flex-col bg-background">
-      <div className="flex w-full flex-1 flex-col md:flex-row">
+    <div className="flex h-full min-h-0 flex-col bg-background">
+      <div className="flex min-h-0 w-full flex-1 flex-col md:flex-row">
         <aside
           className={cn(
             "border-b border-border bg-background transition-[width] duration-200 md:border-b-0",
@@ -96,7 +97,7 @@ export function CourseShell({
                       ? "justify-center px-0 py-3 md:w-12"
                       : "px-3 py-3",
                     isActive
-                      ? "bg-neutral-950 text-white shadow-sm"
+                      ? "bg-primary text-white shadow-sm"
                       : "text-muted-foreground hover:bg-card hover:text-foreground hover:shadow-sm",
                   )}
                   title={item.label}
@@ -110,8 +111,11 @@ export function CourseShell({
         </aside>
         <main
           className={cn(
-            "min-w-0 flex-1 overflow-auto",
-            isStudyGuide ? "p-0" : "px-4 py-5 md:px-8 md:py-8",
+            "min-h-0 min-w-0 flex-1",
+            // Chat is a fixed-height app pane that scrolls internally; everything
+            // else is a normal scrolling document.
+            isChat ? "overflow-hidden" : "overflow-auto",
+            isStudyGuide || isChat ? "p-0" : "px-4 py-5 md:px-8 md:py-8",
           )}
         >
           {children}

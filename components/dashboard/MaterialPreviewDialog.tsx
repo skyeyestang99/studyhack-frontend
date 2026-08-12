@@ -111,15 +111,15 @@ export function MaterialPreviewDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid min-h-[520px] bg-neutral-50 lg:grid-cols-[1fr_18rem]">
-          <div className="min-h-[520px] bg-white">
+        <div className="grid min-h-[520px] bg-muted/50 lg:grid-cols-[1fr_18rem]">
+          <div className="min-h-[520px] bg-card">
             {fileLoading ? (
               <div className="flex h-full min-h-[520px] items-center justify-center px-6 text-sm text-muted-foreground">
                 Loading preview...
               </div>
             ) : fileError ? (
               <div className="flex h-full min-h-[520px] flex-col items-center justify-center gap-3 px-6 text-center">
-                <div className="rounded-2xl border bg-white p-4 shadow-sm">
+                <div className="rounded-2xl border bg-card p-4 shadow-sm">
                   <FileText className="h-10 w-10 text-muted-foreground" />
                 </div>
                 <p className="max-w-md text-sm text-red-600">{fileError}</p>
@@ -132,7 +132,7 @@ export function MaterialPreviewDialog({
               />
             ) : (
               <div className="flex h-full min-h-[520px] flex-col items-center justify-center gap-4 px-6 text-center">
-                <div className="rounded-2xl border bg-white p-4 shadow-sm">
+                <div className="rounded-2xl border bg-card p-4 shadow-sm">
                   <FileText className="h-10 w-10 text-muted-foreground" />
                 </div>
                 <div>
@@ -149,7 +149,7 @@ export function MaterialPreviewDialog({
             )}
           </div>
 
-          <aside className="border-l bg-white p-5">
+          <aside className="border-l bg-card p-5">
             <div className="space-y-4 text-sm">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">

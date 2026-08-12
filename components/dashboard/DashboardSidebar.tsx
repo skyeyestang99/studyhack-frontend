@@ -99,7 +99,7 @@ export function DashboardSidebar() {
                   "flex min-w-0 items-center gap-3 rounded-lg text-base font-semibold transition-colors",
                   collapsed ? "justify-center px-0 py-3" : "px-3 py-3",
                   isActive(link.href)
-                    ? "bg-neutral-950 text-white shadow-sm"
+                    ? "bg-primary text-white shadow-sm"
                     : "text-muted-foreground hover:bg-card hover:text-foreground hover:shadow-sm",
                 )}
                 title={link.label}
@@ -119,7 +119,7 @@ export function DashboardSidebar() {
                         className={cn(
                           "block rounded-lg px-3 py-2.5 text-sm transition-colors",
                           courseActive
-                            ? "bg-neutral-950 font-semibold text-white shadow-sm"
+                            ? "bg-primary font-semibold text-white shadow-sm"
                             : "text-muted-foreground hover:bg-card hover:text-foreground hover:shadow-sm",
                         )}
                         title={`${course.code} — ${course.name} (${courseSubtitle(course)})`}

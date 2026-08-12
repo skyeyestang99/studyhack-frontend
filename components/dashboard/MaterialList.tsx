@@ -43,7 +43,7 @@ const statusConfig: Record<string, { label: string; className: string }> = {
 // and blank the whole page.
 const FALLBACK_STATUS = {
   label: "Unknown",
-  className: "bg-neutral-100 text-neutral-700",
+  className: "bg-muted text-muted-foreground",
 };
 
 const typeLabels: Record<StudyMaterialResponse["materialType"], string> = {

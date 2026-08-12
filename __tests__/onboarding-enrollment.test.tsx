@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import OnboardingPage from "@/app/onboarding/page";
+import OnboardingPage from "@/app/(app)/onboarding/page";
 
 interface CourseInput {
   id?: string;
