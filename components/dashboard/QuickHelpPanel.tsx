@@ -276,6 +276,9 @@ export function QuickHelpPanel({
 
         {answer && (
           <div className="space-y-3">
+            {/* No max-height: this is the hero moment, and a worked solution
+                scrolling inside a 20rem box undersells it. Long transcripts are
+                not a concern here because Quick Help holds one answer at a time. */}
             <div className="relative rounded-xl border bg-muted/30 px-4 py-3">
               {/* Students copy worked solutions; selecting rendered KaTeX by hand
                   produces garbage, so give them an explicit copy action. */}

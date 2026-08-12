@@ -42,11 +42,20 @@ export default function DashboardPage() {
   const [materialStats, setMaterialStats] = useState({ total: 0, assessments: 0 });
 
   useEffect(() => {
+    // Optimistic local read first so the checklist is correct instantly on the
+    // device that asked, then reconciled with the server, which is authoritative
+    // and survives a new browser or device.
     try {
       setAskedQuestion(localStorage.getItem(ASKED_KEY) === "1");
     } catch {
       /* private browsing */
     }
+    apiClient
+      .get<{ milestones: string[] }>("/api/me/milestones")
+      .then(({ milestones }) => {
+        if (milestones.includes("asked_quick_help")) setAskedQuestion(true);
+      })
+      .catch(() => undefined);
     // Drives the activation checklist only, so a failure here should never break
     // the dashboard.
     apiClient

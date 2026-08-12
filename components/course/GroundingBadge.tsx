@@ -5,7 +5,24 @@ import type { GroundingMode } from "@/types/api";
  * Honest provenance badge: tells the student whether an answer came from their
  * course materials (grounded), was only loosely supported (partial), or is
  * general knowledge not found in their uploads (general).
+ *
+ * The badge is the product's core distinction, so the label alone is not enough —
+ * a first-time student has no reason to know that "general" is a warning rather
+ * than a neutral descriptor. Each mode carries an explanation of what it means AND
+ * what to do about it, exposed as both `title` (hover) and `aria-label` (screen
+ * readers), since a tooltip that only works on hover excludes touch and keyboard
+ * users. A one-time coach mark would be better still and is worth doing once
+ * there's evidence students miss this.
  */
+const EXPLANATION: Record<GroundingMode, string> = {
+  grounded:
+    "This answer came from material you uploaded for this course. Open the citations to check it against the source.",
+  partial:
+    "Your materials were only loosely related to this question, so parts of this answer are general knowledge. Check the citations before relying on it.",
+  general:
+    "Nothing in your uploads matched this question, so this is general knowledge and not specific to your class. Upload lecture notes or past assessments to get cited answers.",
+};
+
 export function GroundingBadge({
   mode,
   topSource,
@@ -15,7 +32,7 @@ export function GroundingBadge({
 }) {
   const config = {
     grounded: {
-      cls: "border-green-200 bg-green-50 text-green-800",
+      cls: "border-grounded/40 bg-grounded/10 text-grounded-foreground",
       Icon: CheckCircle2,
       label: topSource
         ? `From your course materials — ${topSource}`
@@ -37,9 +54,11 @@ export function GroundingBadge({
 
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${config.cls}`}
+      className={`inline-flex cursor-help items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${config.cls}`}
+      title={EXPLANATION[mode]}
+      aria-label={`${config.label}. ${EXPLANATION[mode]}`}
     >
-      <config.Icon className="h-3 w-3" />
+      <config.Icon className="h-3 w-3" aria-hidden="true" />
       {config.label}
     </span>
   );
