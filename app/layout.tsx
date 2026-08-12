@@ -18,7 +18,24 @@ const geistMono = localFont({
   weight: "100 900",
 });
 
+/**
+ * Stable base for social preview URLs.
+ *
+ * Without this, Next derives og:image from the per-deployment Vercel host
+ * (studyhack-frontend-<hash>.vercel.app). Those URLs die when the deployment is
+ * pruned, so a shared invite link would silently stop unfurling — which defeats
+ * the point of having an OG image, since the invite is the growth mechanic.
+ *
+ * NEXT_PUBLIC_SITE_URL when set; otherwise the stable per-environment alias.
+ */
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.NEXT_PUBLIC_APP_ENV === "production"
+    ? "https://studyhack-frontend.vercel.app"
+    : "https://studyhack-staging.vercel.app");
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   // Template so course/dashboard pages can set their own title without repeating
   // the brand, and social cards get a real title/description/image instead of
   // unfurling as nothing when an invite link is pasted into a group chat.
