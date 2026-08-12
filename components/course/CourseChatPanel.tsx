@@ -2,10 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import Markdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
-import rehypeKatex from "rehype-katex";
 import {
   Flag,
   ImagePlus,
@@ -34,6 +30,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DeleteDialog } from "@/components/dashboard/DeleteDialog";
 import { GroundingBadge } from "@/components/course/GroundingBadge";
 import { getAuthToken } from "@/lib/auth-token";
+import { cn } from "@/lib/utils";
+import { AnswerMarkdown } from "@/components/shared/AnswerMarkdown";
 import { resolveMaterialUrl } from "@/lib/urls";
 
 interface CourseChatPanelProps {
@@ -492,11 +490,18 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
     : conversations;
 
   return (
-    <Card className="overflow-hidden rounded-2xl border-neutral-200 bg-white shadow-sm">
+    <Card
+      className={cn(
+        "flex min-h-0 flex-col overflow-hidden border-border bg-card shadow-sm",
+        // Full-bleed pane in the dedicated chat view; a rounded card when embedded
+        // (e.g. the compact panel on the homework tab).
+        compact ? "rounded-2xl" : "h-full rounded-none border-x-0 border-b-0 md:rounded-none",
+      )}
+    >
       <CardHeader className="flex flex-row items-center justify-between gap-4">
         <div className="flex items-start gap-3">
-          <div className="rounded-xl border bg-neutral-50 p-2">
-            <Sparkles className="h-5 w-5 text-neutral-700" />
+          <div className="rounded-xl border bg-muted/50 p-2">
+            <Sparkles className="h-5 w-5 text-muted-foreground" />
           </div>
           <div>
           <CardTitle className="text-lg tracking-tight">Ask StudyHack</CardTitle>
@@ -511,17 +516,22 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
           </Button>
         )}
       </CardHeader>
-      <CardContent className="space-y-4 px-4 pb-5 md:px-6">
+      <CardContent
+        className={cn(
+          "px-4 pb-5 md:px-6",
+          compact ? "space-y-4" : "flex min-h-0 flex-1 flex-col pb-0",
+        )}
+      >
         <div
           className={
             compact
               ? "grid gap-4 xl:grid-cols-[1fr_18rem]"
-              : "grid gap-4 lg:grid-cols-[18rem_1fr]"
+              : "grid min-h-0 flex-1 gap-4 lg:grid-cols-[18rem_1fr]"
           }
         >
-          <div className={compact ? "order-2 min-w-0 lg:order-1" : "min-w-0"}>
-            <div className="overflow-hidden rounded-xl border bg-neutral-50/60">
-              <div className="flex items-center justify-between border-b bg-white px-3 py-2">
+          <div className={compact ? "order-2 min-w-0 lg:order-1" : "flex min-h-0 min-w-0 flex-col"}>
+            <div className="overflow-hidden rounded-xl border bg-muted/40">
+              <div className="flex items-center justify-between border-b bg-card px-3 py-2">
                 <h3 className="text-sm font-semibold">Conversations</h3>
                 <Button
                   variant="ghost"
@@ -549,8 +559,8 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                   recentConversations.map((conv) => (
                     <div
                       key={conv.id}
-                      className={`group flex items-center border-b bg-white/70 last:border-b-0 hover:bg-white ${
-                        activeConversation?.id === conv.id ? "bg-white" : ""
+                      className={`group flex items-center border-b bg-card/70 last:border-b-0 hover:bg-card ${
+                        activeConversation?.id === conv.id ? "bg-card" : ""
                       }`}
                     >
                       <button
@@ -580,7 +590,12 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
             </div>
           </div>
 
-          <div className="flex min-h-[28rem] min-w-0 flex-col overflow-hidden rounded-xl border bg-white">
+          <div
+            className={cn(
+              "flex min-w-0 flex-col overflow-hidden bg-card",
+              compact ? "min-h-[28rem] rounded-xl border" : "h-full min-h-0",
+            )}
+          >
             <input
               ref={imageInputRef}
               type="file"
@@ -591,11 +606,11 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                 e.target.value = "";
               }}
             />
-            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto bg-gradient-to-b from-neutral-50/70 to-white p-4">
+            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto bg-gradient-to-b from-muted/40 to-card p-4">
               {!activeConversation ? (
                 <div className="flex h-full flex-col items-center justify-center gap-5 text-center text-muted-foreground">
-                  <div className="rounded-2xl border bg-white p-3 shadow-sm">
-                    <MessageCircleQuestion className="h-7 w-7 text-neutral-800" />
+                  <div className="rounded-2xl border bg-card p-3 shadow-sm">
+                    <MessageCircleQuestion className="h-7 w-7 text-foreground" />
                   </div>
                   <div>
                     <p className="text-base font-medium text-foreground">
@@ -605,8 +620,29 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                       Upload materials first for the most course-specific answer.
                     </p>
                   </div>
+                  {/* A blank textarea is the worst empty state: the student has to
+                      invent a question to discover what the tool does. Quick Help
+                      already proved one-click starters work, so the pattern is
+                      ported here and made course-aware. */}
+                  <div className="flex max-w-2xl flex-wrap justify-center gap-1.5">
+                    {[
+                      "Explain the last thing I uploaded",
+                      `Give me 5 practice problems for ${course.code}`,
+                      "What should I focus on for the next exam?",
+                    ].map((starter) => (
+                      <button
+                        key={starter}
+                        type="button"
+                        disabled={isStreaming}
+                        onClick={() => setQuestionText(starter)}
+                        className="rounded-full border bg-secondary px-2.5 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
+                      >
+                        {starter}
+                      </button>
+                    ))}
+                  </div>
                   <textarea
-                    className="min-h-[128px] w-full max-w-2xl resize-none rounded-2xl border bg-white px-4 py-3 text-sm text-foreground shadow-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    className="min-h-[128px] w-full max-w-2xl resize-none rounded-2xl border bg-card px-4 py-3 text-sm text-foreground shadow-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     placeholder="What do you need help with?"
                     value={questionText}
                     onChange={(e) => setQuestionText(e.target.value)}
@@ -678,8 +714,8 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                       <div
                         className={`max-w-[84%] rounded-2xl px-4 py-3 shadow-sm ${
                           msg.role === "user"
-                            ? "bg-neutral-950 text-white"
-                            : "border bg-white"
+                            ? "bg-primary text-white"
+                            : "border bg-card"
                         }`}
                       >
                         {msg.role === "assistant" ? (
@@ -688,20 +724,13 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                               <div className="mb-2 flex flex-wrap items-center gap-2">
                                 {msg.mode && <GroundingBadge mode={msg.mode} />}
                                 {msg.verified && (
-                                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
+                                  <span className="inline-flex items-center gap-1 rounded-full border border-grounded/40 bg-grounded/10 px-2 py-0.5 text-xs font-medium text-grounded-foreground">
                                     ✓ Steps checked
                                   </span>
                                 )}
                               </div>
                             )}
-                            <div className="prose prose-sm max-w-none">
-                              <Markdown
-                                remarkPlugins={[remarkGfm, remarkMath]}
-                                rehypePlugins={[rehypeKatex]}
-                              >
-                                {msg.content}
-                              </Markdown>
-                            </div>
+                            <AnswerMarkdown>{msg.content}</AnswerMarkdown>
                             {msg.citations && msg.citations.length > 0 && (
                               <div className="mt-3 border-t pt-2">
                                 <p className="text-xs font-semibold text-muted-foreground">
@@ -721,7 +750,7 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                                         {c.fileName}
                                         {c.page ? ` · p.${c.page}` : ""}
                                       </button>
-                                      <span className="shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-600">
+                                      <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
                                         {Math.round(c.score * 100)}% match
                                       </span>
                                     </li>
@@ -730,7 +759,7 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                               </div>
                             )}
                             {msg.mode === "general" && (
-                              <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                              <div className="mt-2 rounded-md border border-brand/40 bg-brand/10 px-3 py-2 text-xs text-brand-foreground">
                                 This wasn&apos;t found in your course materials.{" "}
                                 <Link
                                   href={`/courses/${course.id}/materials`}
@@ -745,21 +774,21 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                               <div className="mt-2 flex items-center gap-1 text-muted-foreground">
                                 <button
                                   onClick={() => sendFeedback(msg.id, { rating: "up" })}
-                                  className={`rounded p-1 hover:bg-neutral-100 ${feedback[msg.id]?.rating === "up" ? "text-green-600" : ""}`}
+                                  className={`rounded p-1 hover:bg-muted ${feedback[msg.id]?.rating === "up" ? "text-green-600" : ""}`}
                                   aria-label="Helpful"
                                 >
                                   <ThumbsUp className="h-3.5 w-3.5" />
                                 </button>
                                 <button
                                   onClick={() => sendFeedback(msg.id, { rating: "down" })}
-                                  className={`rounded p-1 hover:bg-neutral-100 ${feedback[msg.id]?.rating === "down" ? "text-red-600" : ""}`}
+                                  className={`rounded p-1 hover:bg-muted ${feedback[msg.id]?.rating === "down" ? "text-red-600" : ""}`}
                                   aria-label="Not helpful"
                                 >
                                   <ThumbsDown className="h-3.5 w-3.5" />
                                 </button>
                                 <button
                                   onClick={() => sendFeedback(msg.id, { reported: true })}
-                                  className={`rounded p-1 hover:bg-neutral-100 ${feedback[msg.id]?.reported ? "text-amber-600" : ""}`}
+                                  className={`rounded p-1 hover:bg-muted ${feedback[msg.id]?.reported ? "text-brand" : ""}`}
                                   aria-label="Report this answer"
                                 >
                                   <Flag className="h-3.5 w-3.5" />
@@ -778,7 +807,7 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
 
                   {isStreaming && (
                     <div className="flex justify-start">
-                      <div className="max-w-[84%] rounded-2xl border bg-white px-4 py-3 shadow-sm">
+                      <div className="max-w-[84%] rounded-2xl border bg-card px-4 py-3 shadow-sm">
                         {(streamMode || streamVerified) && (
                           <div className="mb-2 flex flex-wrap items-center gap-2">
                             {streamMode && (
@@ -788,21 +817,14 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                               />
                             )}
                             {streamVerified && (
-                              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
+                              <span className="inline-flex items-center gap-1 rounded-full border border-grounded/40 bg-grounded/10 px-2 py-0.5 text-xs font-medium text-grounded-foreground">
                                 ✓ Steps checked
                               </span>
                             )}
                           </div>
                         )}
                         {streamingText ? (
-                          <div className="prose prose-sm max-w-none">
-                            <Markdown
-                              remarkPlugins={[remarkGfm, remarkMath]}
-                              rehypePlugins={[rehypeKatex]}
-                            >
-                              {streamingText}
-                            </Markdown>
-                          </div>
+                          <AnswerMarkdown>{streamingText}</AnswerMarkdown>
                         ) : (
                           <p className="text-sm text-muted-foreground">
                             Thinking...
@@ -823,7 +845,7 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
             </div>
 
             {activeConversation && (
-              <div className="border-t bg-white p-3">
+              <div className="border-t bg-card p-3">
                 <div className="mx-auto max-w-3xl space-y-2">
                   {attachedImage && (
                     <div className="flex items-center gap-2">
@@ -854,7 +876,7 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                       <ImagePlus className="h-4 w-4" />
                     </Button>
                     <textarea
-                      className="min-h-[44px] max-h-[120px] flex-1 resize-none rounded-xl border bg-neutral-50 px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      className="min-h-[44px] max-h-[120px] flex-1 resize-none rounded-xl border bg-muted/50 px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                       placeholder="Type your follow-up question..."
                       value={inputText}
                       onChange={(e) => setInputText(e.target.value)}

@@ -42,7 +42,7 @@ export function CourseHome({ course, school, professor }: CourseHomeProps) {
               help.
             </h2>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Upload class files, watch upcoming exams, and ask StudyAI in the
+              Upload class files, watch upcoming exams, and ask StudyHack in the
               context of {course.code}. Keep this page open while working
               through homework or preparing for exams.
             </p>

@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
-import Navigation from "@/components/layout/Navigation";
-import Footer from "@/components/layout/Footer";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Toaster } from "sonner";
+import "katex/dist/katex.min.css";
 import "./globals.css";
 
 const geistSans = localFont({
@@ -19,7 +19,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "StudyAI - AI-Powered Homework Guidance",
+  title: "StudyHack - AI-Powered Homework Guidance",
   description: "Get personalized homework help powered by AI",
 };
 
@@ -32,22 +32,23 @@ export default function RootLayout({
     <ClerkProvider>
       <html lang="en">
       <head>
-        <link
-          rel="stylesheet"
-          href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"
-          crossOrigin="anonymous"
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('studyhack-theme')||'system';var d=t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.classList.add('dark');}catch(e){}})();`,
+          }}
         />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <AuthProvider>
-          <div className="flex min-h-screen flex-col bg-background text-foreground">
-            <Navigation />
-            <main className="flex-1">{children}</main>
-            <Footer />
-          </div>
+          <ThemeProvider>
+          {/* Chrome lives in the route groups: (marketing) renders nav+footer,
+              (app) renders a full-height shell with neither. Putting it here
+              forced a marketing footer onto the dashboard and chat. */}
+          <div className="bg-background text-foreground">{children}</div>
           <Toaster />
+          </ThemeProvider>
         </AuthProvider>
       </body>
       </html>

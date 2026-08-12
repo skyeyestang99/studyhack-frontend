@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import OnboardingPage from "@/app/onboarding/page";
+import OnboardingPage from "@/app/(app)/onboarding/page";
 import { UploadDialog } from "@/components/dashboard/UploadDialog";
 
 // These are component-level integration tests with mocked routing, auth, env,

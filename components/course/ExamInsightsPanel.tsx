@@ -70,7 +70,7 @@ export function ExamInsightsPanel({ course }: { course: Course }) {
     return (
       <Card className="rounded-2xl shadow-sm">
         <CardContent className="flex items-start gap-3 p-6 text-sm">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
           <p className="text-muted-foreground">{error}</p>
         </CardContent>
       </Card>
@@ -84,7 +84,7 @@ export function ExamInsightsPanel({ course }: { course: Course }) {
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="flex items-center gap-2 text-lg tracking-tight">
-            <Target className="h-4 w-4 text-amber-600" />
+            <Target className="h-4 w-4 text-brand" />
             What this professor tests
           </CardTitle>
           {hasTopics && (
@@ -128,7 +128,7 @@ export function ExamInsightsPanel({ course }: { course: Course }) {
                     {index + 1}. {topic.topic}
                   </span>
                   {topic.appearances > 1 && (
-                    <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                    <span className="rounded border border-brand/40 bg-brand/10 px-1.5 py-0.5 text-xs font-medium text-brand-foreground">
                       in {topic.appearances} assessments
                     </span>
                   )}
@@ -144,7 +144,7 @@ export function ExamInsightsPanel({ course }: { course: Course }) {
                         key={`${source.materialId}-${i}`}
                         type="button"
                         onClick={() => openSource(source.materialId, source.page)}
-                        className="rounded border bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                        className="rounded border bg-secondary px-1.5 py-0.5 font-mono text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
                         title={`Open ${source.fileName}${source.page ? ` (page ${source.page})` : ""}`}
                       >
                         {source.fileName.replace(/\.pdf$/i, "")}

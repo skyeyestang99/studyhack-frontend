@@ -150,11 +150,11 @@ export function CourseMaterialsPanel({
   const visibleMaterials = compact ? materials.slice(0, 5) : materials;
 
   return (
-    <Card className="overflow-hidden rounded-2xl border-neutral-200 bg-white shadow-sm">
+    <Card className="overflow-hidden rounded-2xl border-border bg-card shadow-sm">
       <CardHeader className="flex flex-row items-center justify-between gap-4">
         <div className="flex items-start gap-3">
-          <div className="rounded-xl border bg-neutral-50 p-2">
-            <Library className="h-5 w-5 text-neutral-700" />
+          <div className="rounded-xl border bg-muted/50 p-2">
+            <Library className="h-5 w-5 text-muted-foreground" />
           </div>
           <div>
             <CardTitle className="text-lg tracking-tight">

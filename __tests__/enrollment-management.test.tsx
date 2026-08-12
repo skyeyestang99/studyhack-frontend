@@ -7,7 +7,7 @@ import {
 } from "@testing-library/react";
 import type React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import DashboardPage from "@/app/dashboard/page";
+import DashboardPage from "@/app/(app)/dashboard/page";
 
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({

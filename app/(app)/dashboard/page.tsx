@@ -134,7 +134,7 @@ export default function DashboardPage() {
             Welcome back, {user?.name ?? "User"}!
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Choose a course workspace to upload materials or ask StudyAI.
+            Choose a course workspace to upload materials or ask StudyHack.
           </p>
         </div>
         {courses.data.length > 0 && (
@@ -195,7 +195,7 @@ export default function DashboardPage() {
                 </h3>
                 <p className="mt-1 max-w-md text-sm text-muted-foreground">
                   Set up a course to organize materials, ask questions, and
-                  start studying with StudyAI.
+                  start studying with StudyHack.
                 </p>
               </div>
               <Button asChild>
