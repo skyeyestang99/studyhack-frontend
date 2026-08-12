@@ -27,7 +27,8 @@ import { Button } from "@/components/ui/button";
 import { BookOpen, FileText, MessageCircleQuestion, Plus } from "lucide-react";
 import type { School, Professor, Course } from "@/types/api";
 import { ExamReminderStrip } from "@/components/dashboard/ExamReminderStrip";
-import { QuickHelpPanel } from "@/components/dashboard/QuickHelpPanel";
+import { QuickHelpPanel, ASKED_KEY } from "@/components/dashboard/QuickHelpPanel";
+import { SetupProgress } from "@/components/dashboard/SetupProgress";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -37,6 +38,29 @@ export default function DashboardPage() {
   const schools = useEntities<School>("/api/schools");
   const professors = useEntities<Professor>("/api/professors");
   const courses = useEntities<Course>("/api/courses");
+  const [askedQuestion, setAskedQuestion] = useState(false);
+  const [materialStats, setMaterialStats] = useState({ total: 0, assessments: 0 });
+
+  useEffect(() => {
+    try {
+      setAskedQuestion(localStorage.getItem(ASKED_KEY) === "1");
+    } catch {
+      /* private browsing */
+    }
+    // Drives the activation checklist only, so a failure here should never break
+    // the dashboard.
+    apiClient
+      .get<{ materialType?: string }[]>("/api/materials")
+      .then((rows) =>
+        setMaterialStats({
+          total: rows.length,
+          assessments: rows.filter((r) =>
+            ["EXAM", "HOMEWORK"].includes(String(r.materialType ?? "").toUpperCase()),
+          ).length,
+        }),
+      )
+      .catch(() => undefined);
+  }, []);
 
   const isLoading =
     schools.isLoading || professors.isLoading || courses.isLoading;
@@ -58,6 +82,16 @@ export default function DashboardPage() {
     () => new Set(courses.data.map((course) => course.schoolId)),
     [courses.data],
   );
+
+  // With the filter hidden for single-school users, selectedSchoolId stays "all",
+  // which would strip the school out of the create-course deep link. Fall back to
+  // the only enrolled school so the CTA still lands pre-filled.
+  const effectiveSchoolId = useMemo(() => {
+    if (selectedSchoolId !== "all") return selectedSchoolId;
+    return courseSchoolIds.size === 1
+      ? Array.from(courseSchoolIds)[0]
+      : "all";
+  }, [selectedSchoolId, courseSchoolIds]);
 
   const enrolledSchools = useMemo(
     () => schools.data.filter((school) => courseSchoolIds.has(school.id)),
@@ -84,9 +118,9 @@ export default function DashboardPage() {
     return courses.data.filter((course) => course.schoolId === selectedSchoolId);
   }, [courses.data, selectedSchoolId]);
   const createCourseHref =
-    selectedSchoolId === "all"
+    effectiveSchoolId === "all"
       ? "/onboarding"
-      : `/onboarding?schoolId=${encodeURIComponent(selectedSchoolId)}`;
+      : `/onboarding?schoolId=${encodeURIComponent(effectiveSchoolId)}`;
 
   const handleLeaveCourse = async () => {
     if (!courseToLeave) return;
@@ -137,7 +171,9 @@ export default function DashboardPage() {
             Choose a course workspace to upload materials or ask StudyHack.
           </p>
         </div>
-        {courses.data.length > 0 && (
+        {/* A filter with one option is noise. Almost every beta user has courses at
+            a single school, so only show it once it can actually do something. */}
+        {enrolledSchools.length > 1 && (
           <div className="w-full lg:w-72">
             <Select value={selectedSchoolId} onValueChange={setSelectedSchoolId}>
               <SelectTrigger>
@@ -163,7 +199,18 @@ export default function DashboardPage() {
       {/* Above the course list on purpose: a student with nothing set up still
           has something useful to do, which is the whole point of the zero-setup
           path. */}
-      <QuickHelpPanel hasCourses={courses.data.length > 0} />
+      <QuickHelpPanel
+        hasCourses={courses.data.length > 0}
+        onAsked={() => setAskedQuestion(true)}
+      />
+
+      <SetupProgress
+        askedQuestion={askedQuestion}
+        courseCount={courses.data.length}
+        materialCount={materialStats.total}
+        assessmentCount={materialStats.assessments}
+        firstCourseId={courses.data[0]?.id}
+      />
 
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-4">

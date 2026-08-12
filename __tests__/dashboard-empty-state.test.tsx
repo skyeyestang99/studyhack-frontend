@@ -106,7 +106,7 @@ describe("dashboard enrollment states", () => {
     expect(screen.queryByText("No courses match this school.")).not.toBeInTheDocument();
   });
 
-  it("limits the school filter to schools with enrolled courses", () => {
+  it("hides the school filter when every course is at one school", () => {
     useEntitiesMock.mockImplementation((endpoint: string) => {
       if (endpoint === "/api/schools") {
         return {
@@ -167,14 +167,12 @@ describe("dashboard enrollment states", () => {
 
     render(<DashboardPage />);
 
-    expect(screen.getByRole("option", { name: "UC San Diego" })).toBeInTheDocument();
+    // A filter with a single usable option is noise: the catalog has two schools
+    // but the student is only enrolled at one, so there is nothing to filter.
+    expect(screen.queryByLabelText("Filter by school")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("option", { name: "University of California, Irvine" }),
     ).not.toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText("Filter by school"), {
-      target: { value: "school-ucsd" },
-    });
 
     expect(screen.getByText("Differential Equations")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Create course/i })).toHaveAttribute(
@@ -195,6 +193,14 @@ describe("dashboard enrollment states", () => {
               shortName: "UCSD",
               aliases: [],
               location: "San Diego, CA",
+              createdAt: "2026-01-01T00:00:00.000Z",
+            },
+            {
+              id: "school-uci",
+              name: "University of California, Irvine",
+              shortName: "UCI",
+              aliases: [],
+              location: "Irvine, CA",
               createdAt: "2026-01-01T00:00:00.000Z",
             },
           ],
@@ -225,6 +231,16 @@ describe("dashboard enrollment states", () => {
               code: "MATH 20D",
               name: "Differential Equations",
               schoolId: "school-ucsd",
+              professorId: "prof-smith",
+              createdAt: "2026-01-01T00:00:00.000Z",
+            },
+            // Second enrolled school: the filter only appears when it can
+            // actually narrow something down.
+            {
+              id: "course-cs101",
+              code: "CS 101",
+              name: "Intro to CS",
+              schoolId: "school-uci",
               professorId: "prof-smith",
               createdAt: "2026-01-01T00:00:00.000Z",
             },

@@ -29,6 +29,8 @@ const EXAMPLES = [
 
 const MAX_CHARS = 5000;
 
+export const ASKED_KEY = "studyhack-asked-question";
+
 /**
  * Quick Help — ask a homework question with zero setup.
  *
@@ -42,7 +44,13 @@ const MAX_CHARS = 5000;
  * path hangs off that admission rather than hiding it. Overstating an unsourced
  * answer would waste the one advantage the course-scoped product has.
  */
-export function QuickHelpPanel({ hasCourses }: { hasCourses: boolean }) {
+export function QuickHelpPanel({
+  hasCourses,
+  onAsked,
+}: {
+  hasCourses: boolean;
+  onAsked?: () => void;
+}) {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -134,6 +142,16 @@ export function QuickHelpPanel({ hasCourses }: { hasCourses: boolean }) {
       }
       if (!accumulated.trim()) {
         setError("No answer came back. Try rephrasing the question.");
+      } else {
+        // Records step 1 of the activation checklist. Local to the device on
+        // purpose: it drives UI nudging only, so it is not worth a write path and
+        // a migration.
+        try {
+          localStorage.setItem(ASKED_KEY, "1");
+          onAsked?.();
+        } catch {
+          /* private browsing: the nudge just stays visible */
+        }
       }
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
