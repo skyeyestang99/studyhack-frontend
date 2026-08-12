@@ -14,6 +14,9 @@ import {
   ThumbsUp,
   Trash2,
   X,
+  Check,
+  Copy,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { env } from "@/lib/env";
@@ -31,6 +34,7 @@ import { DeleteDialog } from "@/components/dashboard/DeleteDialog";
 import { GroundingBadge } from "@/components/course/GroundingBadge";
 import { getAuthToken } from "@/lib/auth-token";
 import { cn } from "@/lib/utils";
+import { compressImage } from "@/lib/image";
 import { AnswerMarkdown } from "@/components/shared/AnswerMarkdown";
 import { resolveMaterialUrl } from "@/lib/urls";
 
@@ -41,24 +45,6 @@ interface CourseChatPanelProps {
 
 const MAX_QUESTION_LENGTH = 5000;
 
-/** Downscale + JPEG-compress an image to a data URL so it fits the chat body limit. */
-async function compressImage(
-  file: File,
-  maxDim = 1280,
-  quality = 0.7,
-): Promise<string> {
-  const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
-  const w = Math.round(bitmap.width * scale);
-  const h = Math.round(bitmap.height * scale);
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("canvas unavailable");
-  ctx.drawImage(bitmap, 0, 0, w, h);
-  return canvas.toDataURL("image/jpeg", quality);
-}
 
 async function apiGet<T>(path: string): Promise<T> {
   if (env.useMocks) {
@@ -121,6 +107,11 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
     topSource?: string;
   } | null>(null);
   const [streamVerified, setStreamVerified] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  // Tracks whether the user has scrolled up to re-read. Autoscroll already backs
+  // off in that case, but without telling them new content arrived they can sit
+  // reading while an answer finishes off-screen.
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const [feedback, setFeedback] = useState<
     Record<string, { rating?: "up" | "down"; reported?: boolean }>
   >({});
@@ -202,6 +193,10 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
     const distanceFromBottom = el.scrollHeight - el.clientHeight - el.scrollTop;
     if (distanceFromBottom < 120) {
       el.scrollTop = el.scrollHeight;
+      setShowJumpToLatest(false);
+    } else {
+      // Content arrived while they were reading further up.
+      setShowJumpToLatest(true);
     }
   }, [messages, streamingText]);
 
@@ -419,6 +414,47 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
     }
   };
 
+  const copyAnswer = async (id: string, content: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId((c) => (c === id ? null : c)), 1500);
+    } catch {
+      /* clipboard blocked; the text is still selectable */
+    }
+  };
+
+  /**
+   * Re-ask the question that produced a given answer.
+   *
+   * Pairs with the thumbs-down that was already collected: marking an answer bad
+   * with no way to get a better one is a dead end. Finds the user message
+   * immediately preceding the answer and resends it, rather than resending the
+   * last message in the conversation, so regenerating an older answer works.
+   */
+  const regenerateAnswer = async (assistantMessageId: string) => {
+    if (!activeConversation || isStreaming) return;
+    const idx = messages.findIndex((m) => m.id === assistantMessageId);
+    if (idx < 0) return;
+    const priorUser = [...messages.slice(0, idx)].reverse().find((m) => m.role === "user");
+    if (!priorUser) return;
+    // Strip the camera marker added for display so the model gets the real text.
+    const content = priorUser.content.replace(/^📷\s*/, "");
+    setIsStreaming(true);
+    setError(null);
+    try {
+      await streamSSE(
+        `/api/conversations/${activeConversation.id}/messages`,
+        "POST",
+        { content },
+      );
+      loadConversations();
+    } catch {
+      setError("Couldn't regenerate that answer. Please try again.");
+      setIsStreaming(false);
+    }
+  };
+
   const handleSendMessage = async () => {
     if (!activeConversation || isStreaming) return;
     const content = inputText.trim() || (attachedImage ? "Please help with this problem." : "");
@@ -606,6 +642,20 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                 e.target.value = "";
               }}
             />
+            <div className="relative flex min-h-0 flex-1 flex-col">
+              {showJumpToLatest && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const el = scrollContainerRef.current;
+                    if (el) el.scrollTop = el.scrollHeight;
+                    setShowJumpToLatest(false);
+                  }}
+                  className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full border bg-card px-3 py-1.5 text-xs font-medium shadow-md hover:bg-accent"
+                >
+                  ↓ Jump to latest
+                </button>
+              )}
             <div ref={scrollContainerRef} className="flex-1 overflow-y-auto bg-gradient-to-b from-muted/40 to-card p-4">
               {!activeConversation ? (
                 <div className="flex h-full flex-col items-center justify-center gap-5 text-center text-muted-foreground">
@@ -793,6 +843,31 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                                 >
                                   <Flag className="h-3.5 w-3.5" />
                                 </button>
+                                {/* Students copy worked solutions; hand-selecting
+                                    rendered KaTeX produces garbage. */}
+                                <button
+                                  onClick={() => void copyAnswer(msg.id, msg.content)}
+                                  className="rounded p-1 hover:bg-muted"
+                                  aria-label="Copy answer"
+                                  title="Copy answer"
+                                >
+                                  {copiedId === msg.id ? (
+                                    <Check className="h-3.5 w-3.5 text-grounded" />
+                                  ) : (
+                                    <Copy className="h-3.5 w-3.5" />
+                                  )}
+                                </button>
+                                {/* Marking an answer unhelpful with no way to get a
+                                    better one is a dead end. */}
+                                <button
+                                  onClick={() => void regenerateAnswer(msg.id)}
+                                  disabled={isStreaming}
+                                  className="rounded p-1 hover:bg-muted disabled:opacity-40"
+                                  aria-label="Regenerate this answer"
+                                  title="Try again"
+                                >
+                                  <RefreshCw className="h-3.5 w-3.5" />
+                                </button>
                               </div>
                             )}
                           </div>
@@ -842,6 +917,7 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
                   <div ref={messagesEndRef} />
                 </div>
               )}
+            </div>
             </div>
 
             {activeConversation && (

@@ -1,120 +1,139 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { apiClient } from "@/lib/api-client";
-import { HealthCheckResponse } from "@/types/api";
+import Link from "next/link";
+import { ArrowRight, FileText, MessageCircleQuestion, Target } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@/components/ui/card";
+import { GroundedAnswerDemo } from "@/components/marketing/GroundedAnswerDemo";
 
-type HealthState =
-  | { kind: "loading" }
-  | { kind: "success"; data: HealthCheckResponse }
-  | { kind: "error"; message: string };
-
+/**
+ * Landing page.
+ *
+ * This was a backend health-check card with two dead buttons — the first screen
+ * every invitee saw, promising "AI-Powered Homework Guidance" above a panel that
+ * could read "Unable to connect to the backend." The health check moved to /debug,
+ * where it is actually useful.
+ *
+ * The argument is ordered the way a sceptical student would test it: what makes
+ * this different from the chatbot they already use (a cited answer from their own
+ * class), then what it costs them to find out (nothing — the first question needs
+ * no setup), then what it can't do. Claiming less than the product delivers is
+ * cheaper than losing trust in week one of a beta.
+ */
 export default function Home() {
-  const [health, setHealth] = useState<HealthState>({ kind: "loading" });
+  const { isAuthenticated } = useAuth();
 
-  const fetchHealth = useCallback(async () => {
-    setHealth({ kind: "loading" });
-    try {
-      const data = await apiClient.get<HealthCheckResponse>("/api/health");
-      setHealth({ kind: "success", data });
-    } catch {
-      setHealth({
-        kind: "error",
-        message: "Unable to connect to the backend. Please try again later.",
-      });
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchHealth();
-  }, [fetchHealth]);
+  // Signed-in visitors are not prospects; send them where the product is.
+  const primaryHref = isAuthenticated ? "/dashboard" : "/register";
+  const primaryLabel = isAuthenticated ? "Go to my dashboard" : "Start free — no setup";
 
   return (
-    <div className="flex flex-col items-center px-4 py-16 sm:px-6 lg:px-8">
-      {/* Hero Section */}
-      <section className="mx-auto max-w-3xl text-center">
-        <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
-          AI-Powered Homework Guidance
-        </h1>
-        <p className="mt-4 text-lg text-muted-foreground">
-          StudyHack helps college students learn smarter with personalized,
-          AI-driven homework assistance. Get step-by-step guidance tailored to
-          your courses, professors, and learning style.
-        </p>
+    <div className="flex flex-col">
+      <section className="mx-auto w-full max-w-6xl px-4 pb-8 pt-14 sm:px-6 lg:px-8 lg:pt-20">
+        <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
+          <div>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-brand/40 bg-brand/10 px-2.5 py-1 text-xs font-medium text-brand-foreground">
+              <Target className="h-3.5 w-3.5" aria-hidden="true" />
+              Built around your professor, not just your subject
+            </span>
 
-        <div className="mt-8 flex flex-wrap justify-center gap-4">
-          <Button size="lg">Get Started</Button>
-          <Button size="lg" variant="outline">
-            Learn More
-          </Button>
+            <h1 className="mt-4 text-4xl font-bold tracking-tight sm:text-5xl">
+              Homework help that knows your class
+            </h1>
+
+            <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
+              Ask anything and get worked guidance in seconds. Add your course, and
+              answers start citing{" "}
+              <span className="font-medium text-foreground">your own materials</span> —
+              page by page — plus what your professor has actually tested before.
+            </p>
+
+            <div className="mt-8 flex flex-wrap items-center gap-3">
+              <Button asChild size="lg">
+                <Link href={primaryHref}>
+                  {primaryLabel}
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+              {/* Was a dead "Learn more". An in-page anchor to the actual example is
+                  a real destination, and the example is the argument. */}
+              <Button asChild size="lg" variant="outline">
+                <a href="#example">See a real answer</a>
+              </Button>
+            </div>
+
+            <p className="mt-3 text-sm text-muted-foreground">
+              Free during beta. Your first question needs no course, no uploads.
+            </p>
+          </div>
+
+          <div id="example" className="lg:pl-4">
+            <GroundedAnswerDemo />
+            <p className="mt-2 text-center text-xs text-muted-foreground">
+              A real answer from a seeded MATH 20C course, with its citations.
+            </p>
+          </div>
         </div>
       </section>
 
-      {/* Health Check Card */}
-      <section className="mx-auto mt-16 w-full max-w-md">
-        <Card>
-          <CardHeader>
-            <CardTitle>System Status</CardTitle>
-            <CardDescription>Backend service health check</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {health.kind === "loading" && (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <span
-                  className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
-                  role="status"
-                />
-                <span>Checking status…</span>
-              </div>
-            )}
+      <section className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
+        <div className="grid gap-6 sm:grid-cols-3">
+          {[
+            {
+              Icon: MessageCircleQuestion,
+              title: "Start in one question",
+              body: "No course setup, no uploads. Type or photograph the problem and get a worked explanation.",
+            },
+            {
+              Icon: FileText,
+              title: "Answers from your material",
+              body: "Upload lecture notes and problem sets, and every claim links to the page it came from — so you can check it.",
+            },
+            {
+              Icon: Target,
+              title: "What your professor tests",
+              body: "Past exams and quizzes from your course, read together to show which topics they keep returning to.",
+            },
+          ].map(({ Icon, title, body }) => (
+            <div key={title} className="rounded-2xl border bg-card p-5 shadow-sm">
+              <Icon className="h-5 w-5 text-brand" aria-hidden="true" />
+              <h2 className="mt-3 font-semibold">{title}</h2>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                {body}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
 
-            {health.kind === "success" && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Status</span>
-                  <span
-                    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                      health.data.status === "UP"
-                        ? "bg-green-100 text-green-800"
-                        : "bg-red-100 text-red-800"
-                    }`}
-                  >
-                    {health.data.status}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Database</span>
-                  <span
-                    className={`text-sm ${
-                      health.data.database === "connected"
-                        ? "text-green-600"
-                        : "text-red-600"
-                    }`}
-                  >
-                    {health.data.database}
-                  </span>
-                </div>
-              </div>
-            )}
+      {/* Setting expectations beats a surprise in week one. */}
+      <section className="mx-auto w-full max-w-3xl px-4 pb-16 sm:px-6 lg:px-8">
+        <div className="rounded-2xl border bg-muted/30 p-5">
+          <h2 className="font-semibold">What it won&apos;t do</h2>
+          <ul className="mt-2 space-y-1.5 text-sm leading-relaxed text-muted-foreground">
+            <li>
+              · It won&apos;t hand you answers to submit. It works through problems so
+              you can do the next one yourself.
+            </li>
+            <li>
+              · It won&apos;t invent a source. With nothing uploaded, it says the answer
+              came from general knowledge instead of implying it came from your class.
+            </li>
+            <li>
+              · It can&apos;t predict your exam. It reports what past assessments
+              emphasised, and tells you when that&apos;s too little evidence to trust.
+            </li>
+          </ul>
+        </div>
 
-            {health.kind === "error" && (
-              <div className="space-y-3">
-                <p className="text-sm text-red-600">{health.message}</p>
-                <Button variant="outline" size="sm" onClick={fetchHealth}>
-                  Retry
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <div className="mt-8 text-center">
+          <Button asChild size="lg">
+            <Link href={primaryHref}>
+              {primaryLabel}
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
       </section>
     </div>
   );
