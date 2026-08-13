@@ -29,7 +29,6 @@ const EXAMPLES = [
 
 const MAX_CHARS = 5000;
 
-export const ASKED_KEY = "studyhack-asked-question";
 
 /**
  * Quick Help — ask a homework question with zero setup.
@@ -143,15 +142,11 @@ export function QuickHelpPanel({
       if (!accumulated.trim()) {
         setError("No answer came back. Try rephrasing the question.");
       } else {
-        // Records step 1 of the activation checklist. Local to the device on
-        // purpose: it drives UI nudging only, so it is not worth a write path and
-        // a migration.
-        try {
-          localStorage.setItem(ASKED_KEY, "1");
-          onAsked?.();
-        } catch {
-          /* private browsing: the nudge just stays visible */
-        }
+        // Step 1 of the activation checklist is recorded server-side by the
+        // /api/quick-help route. This only nudges local state so the checklist
+        // updates without a refetch; nothing is persisted in the browser, because
+        // localStorage is per-browser rather than per-account.
+        onAsked?.();
       }
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
