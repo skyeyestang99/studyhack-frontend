@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -20,6 +20,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { AnswerMarkdown } from "@/components/shared/AnswerMarkdown";
+import { QuotaRefusalCard, UsageMeter } from "@/components/usage/QuotaCards";
+import { KIND_LABEL, readQuotaRefusal, type QuotaRefusal, type UsageSummary } from "@/lib/quota";
 
 const EXAMPLES = [
   "How do I find the critical points of f(x,y) = x² + y² − 4x + 6y?",
@@ -57,10 +59,35 @@ export function QuickHelpPanel({
   const [asked, setAsked] = useState(false);
   const [image, setImage] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [refusal, setRefusal] = useState<QuotaRefusal | null>(null);
+  const [usage, setUsage] = useState<{ used: number; limit: number } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const overLimit = question.length > MAX_CHARS;
+
+  // Loaded so the meter can warn BEFORE a refusal. Discovering a limit only by
+  // hitting it is the same failure as an unlabelled error.
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const token = await getAuthToken();
+        const res = await fetch(`${env.apiUrl}/api/me/usage`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) return;
+        const body = (await res.json()) as UsageSummary;
+        const row = body.kinds.find((k) => k.kind === "quick_help");
+        if (alive && row) setUsage({ used: row.used, limit: row.limit });
+      } catch {
+        /* the meter is an enhancement; never block asking a question on it */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const attach = async (file: File | undefined) => {
     if (!file) return;
@@ -91,6 +118,7 @@ export function QuickHelpPanel({
 
     setStreaming(true);
     setError(null);
+    setRefusal(null);
     setAnswer("");
     setAsked(true);
 
@@ -108,6 +136,14 @@ export function QuickHelpPanel({
         }),
         signal: controller.signal,
       });
+      // A quota refusal is a distinct state, not a generic failure — and the two
+      // refusal reasons are distinct from each other.
+      const quotaRefusal = await readQuotaRefusal(res);
+      if (quotaRefusal) {
+        setRefusal(quotaRefusal);
+        setAsked(false);
+        return;
+      }
       if (!res.ok) throw new Error("Request failed");
 
       const reader = res.body?.getReader();
@@ -241,6 +277,7 @@ export function QuickHelpPanel({
 
         <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
           <span className="hidden sm:inline">⌘↵ to send</span>
+          {usage && <UsageMeter used={usage.used} limit={usage.limit} />}
           {/* Only appears near the limit — a permanent counter is noise. */}
           {question.length > MAX_CHARS * 0.8 && (
             <span className={overLimit ? "font-medium text-destructive" : ""}>
@@ -265,6 +302,10 @@ export function QuickHelpPanel({
               </button>
             ))}
           </div>
+        )}
+
+        {refusal && (
+          <QuotaRefusalCard refusal={refusal} kindLabel={KIND_LABEL.quick_help} />
         )}
 
         {error && <p className="text-sm text-destructive">{error}</p>}

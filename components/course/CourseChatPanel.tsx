@@ -36,6 +36,8 @@ import { getAuthToken } from "@/lib/auth-token";
 import { cn } from "@/lib/utils";
 import { compressImage } from "@/lib/image";
 import { AnswerMarkdown } from "@/components/shared/AnswerMarkdown";
+import { QuotaRefusalCard } from "@/components/usage/QuotaCards";
+import { KIND_LABEL, readQuotaRefusal, type QuotaRefusal } from "@/lib/quota";
 import { resolveMaterialUrl } from "@/lib/urls";
 
 interface CourseChatPanelProps {
@@ -112,6 +114,7 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
   // off in that case, but without telling them new content arrived they can sit
   // reading while an answer finishes off-screen.
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const [refusal, setRefusal] = useState<QuotaRefusal | null>(null);
   const [feedback, setFeedback] = useState<
     Record<string, { rating?: "up" | "down"; reported?: boolean }>
   >({});
@@ -273,6 +276,15 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
           ...(body ? { body: JSON.stringify(body) } : {}),
         });
 
+        // Quota refusals arrive BEFORE the stream starts (enforcement runs before
+        // writeHead), so they are an ordinary JSON response and can be reported
+        // precisely instead of as a truncated stream.
+        const quotaRefusal = await readQuotaRefusal(res);
+        if (quotaRefusal) {
+          setRefusal(quotaRefusal);
+          setIsStreaming(false);
+          return;
+        }
         if (!res.ok) throw new Error("Stream request failed");
 
         const reader = res.body?.getReader();
@@ -384,6 +396,7 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
 
     setIsStreaming(true);
     setError(null);
+    setRefusal(null);
     const image = attachedImage;
 
     try {
@@ -919,6 +932,17 @@ export function CourseChatPanel({ course, compact = false }: CourseChatPanelProp
               )}
             </div>
             </div>
+
+            {refusal && (
+              <div className="border-t bg-card px-3 pt-3">
+                <div className="mx-auto max-w-3xl">
+                  <QuotaRefusalCard
+                    refusal={refusal}
+                    kindLabel={KIND_LABEL.course_chat}
+                  />
+                </div>
+              </div>
+            )}
 
             {activeConversation && (
               <div className="border-t bg-card p-3">
