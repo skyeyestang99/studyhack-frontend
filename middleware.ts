@@ -7,8 +7,10 @@ export default clerkMiddleware();
 
 export const config = {
   matcher: [
-    // Skip Next internals and static files, run on everything else.
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    // Skip Next internals, static files, and the Clerk Frontend API proxy —
+    // /__clerk must reach its route handler to be forwarded upstream, not be
+    // intercepted by the session middleware.
+    "/((?!_next|__clerk|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
     "/(api|trpc)(.*)",
   ],
 };

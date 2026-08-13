@@ -8,6 +8,15 @@ const nextConfig = {
   },
   async rewrites() {
     return [
+      // Clerk production instances need their Frontend API served from a domain we
+      // control. This host is *.vercel.app, where the usual CNAME cannot be added,
+      // so Clerk provisioned the instance in proxy mode at /__clerk. The handler
+      // cannot live at app/__clerk because the App Router treats leading-underscore
+      // folders as private and drops them from routing.
+      {
+        source: "/__clerk/:path*",
+        destination: "/clerk-proxy/:path*",
+      },
       {
         source: "/api/:path*",
         destination: `${
