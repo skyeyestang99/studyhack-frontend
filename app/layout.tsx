@@ -78,7 +78,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider>
+    // proxyUrl is set only where a Clerk PRODUCTION instance is in use. Test
+    // instances talk to clerk.accounts.dev directly, so leaving this undefined on
+    // staging is correct rather than an omission.
+    <ClerkProvider proxyUrl={process.env.NEXT_PUBLIC_CLERK_PROXY_URL}>
       <html lang="en">
       <head>
         <script
