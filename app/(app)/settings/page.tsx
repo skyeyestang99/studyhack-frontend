@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/settings/ThemeToggle";
+import { UsagePanel } from "@/components/settings/UsagePanel";
 
 export default function SettingsPage() {
   return (
@@ -24,6 +25,8 @@ export default function SettingsPage() {
           </p>
         </CardContent>
       </Card>
+
+      <UsagePanel />
 
       <Card className="rounded-2xl shadow-sm">
         <CardHeader className="pb-3">
