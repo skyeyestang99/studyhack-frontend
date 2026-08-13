@@ -27,7 +27,7 @@ import { Button } from "@/components/ui/button";
 import { BookOpen, FileText, MessageCircleQuestion, Plus } from "lucide-react";
 import type { School, Professor, Course } from "@/types/api";
 import { ExamReminderStrip } from "@/components/dashboard/ExamReminderStrip";
-import { QuickHelpPanel, ASKED_KEY } from "@/components/dashboard/QuickHelpPanel";
+import { QuickHelpPanel } from "@/components/dashboard/QuickHelpPanel";
 import { SetupProgress } from "@/components/dashboard/SetupProgress";
 
 export default function DashboardPage() {
@@ -42,19 +42,14 @@ export default function DashboardPage() {
   const [materialStats, setMaterialStats] = useState({ total: 0, assessments: 0 });
 
   useEffect(() => {
-    // Optimistic local read first so the checklist is correct instantly on the
-    // device that asked, then reconciled with the server, which is authoritative
-    // and survives a new browser or device.
-    try {
-      setAskedQuestion(localStorage.getItem(ASKED_KEY) === "1");
-    } catch {
-      /* private browsing */
-    }
+    // The server is the ONLY source of truth here. The earlier optimistic
+    // localStorage read was not just redundant — localStorage is per-browser, not
+    // per-account, so on a shared or family computer it showed one student the
+    // other's progress. Being briefly behind is much better than being wrong about
+    // whose account you are looking at.
     apiClient
       .get<{ milestones: string[] }>("/api/me/milestones")
-      .then(({ milestones }) => {
-        if (milestones.includes("asked_quick_help")) setAskedQuestion(true);
-      })
+      .then(({ milestones }) => setAskedQuestion(milestones.includes("asked_quick_help")))
       .catch(() => undefined);
     // Drives the activation checklist only, so a failure here should never break
     // the dashboard.
