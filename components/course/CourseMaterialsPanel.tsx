@@ -15,6 +15,7 @@ import {
 import { MaterialList } from "@/components/dashboard/MaterialList";
 import { MaterialPreviewDialog } from "@/components/dashboard/MaterialPreviewDialog";
 import { UploadDialog } from "@/components/dashboard/UploadDialog";
+import { MATERIAL_TYPE_OPTIONS } from "@/lib/material-types";
 
 interface CourseMaterialsPanelProps {
   course: Course;
@@ -28,13 +29,7 @@ const materialTypeFields: FieldConfig[] = [
     label: "Material Type",
     type: "select",
     required: true,
-    options: [
-      { value: "SYLLABUS", label: "Syllabus / Schedule" },
-      { value: "HOMEWORK", label: "Homework" },
-      { value: "PPT", label: "Lecture Slides" },
-      { value: "EXAM", label: "Exam" },
-      { value: "NOTES", label: "Notes" },
-    ],
+    options: MATERIAL_TYPE_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
   },
 ];
 

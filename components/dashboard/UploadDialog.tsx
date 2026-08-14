@@ -26,6 +26,7 @@ import { Course, StudyMaterialResponse } from "@/types/api";
 import { env } from "@/lib/env";
 import { getAuthToken } from "@/lib/auth-token";
 import { cn } from "@/lib/utils";
+import { MATERIAL_TYPE_OPTIONS } from "@/lib/material-types";
 
 interface UploadDialogProps {
   open: boolean;
@@ -36,13 +37,9 @@ interface UploadDialogProps {
   defaultMaterialType?: StudyMaterialResponse["materialType"];
 }
 
-const materialTypes = [
-  { value: "SYLLABUS", label: "Syllabus / Schedule" },
-  { value: "HOMEWORK", label: "Homework" },
-  { value: "PPT", label: "Lecture Slides" },
-  { value: "EXAM", label: "Exam" },
-  { value: "NOTES", label: "Notes" },
-];
+// Single source of truth (lib/material-types.ts). Previously duplicated here and in
+// CourseMaterialsPanel, which is how one picker keeps offering a renamed type.
+const materialTypes = MATERIAL_TYPE_OPTIONS;
 
 function uploadErrorMessage(message: string) {
   if (
